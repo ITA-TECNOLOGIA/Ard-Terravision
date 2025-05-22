@@ -1,0 +1,25 @@
+{
+    "l1_input": {
+      "type": "Airborne",
+      "params": {
+        "path": "/datassd/proyectos/terravision/terravision_airborne/sp202402",
+        "hslvl3_project": "sp3",
+        "time_indices": [2]
+      }
+    },
+    "l2_algorithms": [],
+    "l3_algorithms": [
+      {
+        "type": "ObjectDetectionGroundedSAM2",
+        "params": [
+          {"airborne_tile": "v1-0-1"}
+        ]
+      }
+    ],
+    "l4_algorithm": {
+      "type": "LLaVACustom",
+      "params": [
+          {"airborne_tile": "v1-0-1"}
+      ]
+    }
+  } 

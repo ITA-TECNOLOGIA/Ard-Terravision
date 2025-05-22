@@ -1,0 +1,6 @@
+[submodule "src/main/python/L3/ObjectDetection/Grounded-SAM-2"]
+	path = src/main/python/L3/ObjectDetection/Grounded-SAM-2
+	url = https://github.com/IDEA-Research/Grounded-SAM-2.git
+[submodule "src/main/python/L4/LLaVACustom/LLaVA"]
+	path = src/main/python/L4/LLaVACustom/LLaVA
+	url = https://github.com/cmaranes-ita/LLaVA.git

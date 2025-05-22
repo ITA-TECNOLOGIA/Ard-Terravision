@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Python: Current File",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${file}",
+        "cwd": "${fileDirname}",
+        "console": "integratedTerminal"
+      },
+      {
+        "name": "Python:Streamlit",
+        "type": "debugpy",
+        "request": "launch",
+        "module": "streamlit",
+        "args": [
+            "run",
+            "${file}",
+            "--server.port",
+            "2002"
+        ]
+      },
+      {
+        "name": "Python: Discover & Run Unit Tests",
+        "type": "python",
+        "request": "launch",
+        "purpose": ["debug-test"],
+        "module": "unittest",
+        "args": [
+          "discover",
+          "-v",
+          "-s",
+          "${workspaceFolder}/src/test/python"
+        ],
+        "console": "integratedTerminal",
+        "justMyCode": false
+      }
+    ]
+  }
+  

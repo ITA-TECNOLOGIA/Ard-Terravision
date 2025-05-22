@@ -1,0 +1,78 @@
+{
+    "l1_input": {
+      "type": "Satellite",
+      "params": {
+        "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_Canteras_AOI_2024-03-14_2025-03-14_batch_with_clouds.nc"
+      }
+    },
+    "l2_algorithms": [
+      {
+        "type": "AtmosphericCorrection",
+        "params": {
+          "time_indices": [3],
+          "band_names": ["B02", "B03", "B04"]
+        }
+      },
+      {
+        "type": "CloudMasking",
+        "params": {
+          "time_indices": [17],
+          "rgb_band_names": [["B04", "B03", "B02"]]
+        }
+      },
+      {
+        "type": "PanSharpening",
+        "params": {
+          "time_indices": [3],
+          "band_names": ["B02", "B03", "B04"]
+        }
+      },
+      {
+        "type": "Orthorectification",
+        "params": {
+          "time_indices": [3],
+          "band_names": ["B02"]
+        }
+      }
+    ],
+    "l3_algorithms": [
+      {
+        "type": "ObjectDetectionGroundedSAM2",
+        "params": [
+          {
+            "time_index": 3
+          }
+          ]
+      },
+      {
+        "type": "ChangeDetection",
+        "params": {
+          "time_indices": [3],
+          "band_names": ["B02", "B03", "B04"]
+        }
+      },
+      {
+        "type": "LulcClassification",
+        "params": {
+          "time_indices": [3],
+          "band_names": ["B02", "B03", "B04"]
+        }
+      },
+      {
+        "type": "SemanticCaptioning",
+        "params": {
+          "time_indices": [3],
+          "band_names": ["B02", "B03", "B04"]
+        }
+      }
+    ],
+    "l4_algorithm": {
+      "type": "LLaVACustom",
+      "params": [
+        {
+          "time_index": 3
+        }
+      ]
+    }
+  }
+  

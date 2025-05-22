@@ -1,0 +1,24 @@
+{
+    "l1_input": {
+      "type": "Satellite",
+      "params": {
+        "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_Canteras_AOI_2024-03-14_2025-03-14_batch_with_clouds.nc"
+      }
+    },
+    "l2_algorithms": [
+      {
+        "type": "CloudMasking",
+        "params": {
+          "time_indices": [17],
+          "rgb_band_names": [["B04", "B03", "B02"]]
+        }
+      }
+    ],
+    "l3_algorithms": [
+    ],
+    "l4_algorithm": {
+      "type": "InformationFusionGenerativeVLM",
+      "params": {}
+    }
+  }
+  

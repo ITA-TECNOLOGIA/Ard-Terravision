@@ -1,0 +1,14 @@
+xarray[complete]
+rasterio==1.4.3
+scikit-image==0.25.2
+pytorch-lightning==2.5.1
+spectral==0.24
+flash_attn==2.7.4
+streamlit==1.43.2
+colorama==0.4.6
+sentencepiece==0.2.0
+peft==0.15.2
+python-dotenv==1.1.0
+shapley==1.0.3
+sardem==0.4.1
+gdal==3.8.4
