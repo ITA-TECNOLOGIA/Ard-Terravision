@@ -15,6 +15,8 @@ The project is under active development at ITA, integrating multiple data source
 2. [Description](#description)
 3. [Installation](#installation)
 4. [Usage](#usage)
+   * [Local Python](#local-python)
+   * [Docker GPU Setup](#docker-gpu-setup)
 5. [Testing](#testing)
 6. [Pipeline Configuration (L1, L2, L3, L4)](#pipeline-configuration-l1-l2-l3-l4)
 
@@ -28,10 +30,9 @@ The project is under active development at ITA, integrating multiple data source
 
    * [Satellite Data](#satellite-data)
    * [Airborne Data](#airborne-data)
-9. [Roadmap](#roadmap)
-10. [Authors and Acknowledgment](#authors-and-acknowledgment)
-11. [License](#license)
-12. [Project Status](#project-status)
+9. [Authors and Acknowledgment](#authors-and-acknowledgment)
+10. [License](#license)
+11. [Project Status](#project-status)
 
 ---
 
@@ -66,7 +67,7 @@ Below is a high-level schematic of the pipeline:
                             └───────┘
 ```
 
-* **L1** handles data ingestion from various sources (e.g. Sentinel 2, airborne imagery).
+* **L1** handles data ingestion from various sources (e.g. Sentinel 2, airborne imagery).
 * **L2** covers tasks like atmospheric corrections, DEM integration, and orthorectification.
 * **L3** includes advanced algorithms like semantic captioning, object detection, and label classification.
 * **L4** collates outputs from L3 to produce final results or feed them into subsequent workflows.
@@ -75,7 +76,7 @@ Below is a high-level schematic of the pipeline:
 
 ## Description
 
-This repository provides a collection of scripts and utilities designed to create **Analysis Ready Data (ARD)** primarily from satellite data (Sentinel 2) and airborne data. The tools are modular and can be easily extended by adding or customizing different *layers* (L1, L2, L3, and L4).
+This repository provides a collection of scripts and utilities designed to create **Analysis Ready Data (ARD)** primarily from satellite data (Sentinel 2) and airborne data. The tools are modular and can be easily extended by adding or customizing different *layers* (L1, L2, L3, and L4).
 
 Key highlights:
 
@@ -142,6 +143,8 @@ Key highlights:
 
 ## Usage
 
+### Local Python
+
 1. **Main entry point**:
 
    ```bash
@@ -150,11 +153,46 @@ Key highlights:
 
    The script will load `.env` variables (including `DEVICE`) and set the CUDA device accordingly.
 
-2. **Pipeline configuration**:
-   Place your JSON under `pipelines/`, e.g.:
+2. **Pipeline configuration**: Place your JSON under `pipelines/`, e.g.:
 
    * `pipelines/satellite_example.json`
    * `pipelines/airborne_example.json`
+
+---
+
+### Docker GPU Setup
+
+If you prefer to run Terravision in a container with GPU acceleration, follow these steps:
+
+1. **Prerequisites**
+
+   * An NVIDIA GPU with **at least 22 GB** of RAM.
+   * [NVIDIA Container Toolkit](https://github.com/NVIDIA/nvidia-docker) installed and configured.
+
+2. **Docker files**
+
+   * **Dockerfile**: `src/main/docker/terravision_gpu.dockerfile`
+   * **Compose**:   `src/main/docker/terravision_gpu.yml`
+
+3. **Build & run**
+   From the project root, execute:
+
+   ```bash
+   docker compose -f src/main/docker/terravision_gpu.yml up --build
+   ```
+
+   This will:
+
+   * Build the GPU-enabled image using `terravision_gpu.dockerfile`.
+   * Launch a container that runs:
+
+     ```json
+     CMD ["streamlit", "run", "src/main/python/main_streamlit.py"]
+     ```
+   * Automatically expose the Streamlit web UI on port **8501**.
+
+4. **Select the GPU pipeline**
+   In the Streamlit UI, choose the **satellite\_example\_docker\_gpu** pipeline to run the example satellite workflow.
 
 ---
 
@@ -176,7 +214,7 @@ Instead of subclassing, pipelines are now defined via JSON. See `pipelines/satel
 
 Each config is a JSON object with four keys:
 
-* `l1_input`: object with `type` (e.g. "Satellite") and `params` for its constructor.
+* `l1_input`: object with `type` (e.g. `"Satellite"`) and `params` for its constructor.
 * `l2_algorithms`: array of `{ type: string, params: {...} }`.
 * `l3_algorithms`: array of `{ type: string, params: {...} }`.
 * `l4_algorithm`: object with `type` and `params`.
@@ -196,11 +234,19 @@ Each config is a JSON object with four keys:
 
 ### Satellite Data
 
-Sentinel 2 data lives on Salas: `/datassd/proyectos/terravision/terravision_satellite/`.
+Sentinel 2 data lives on Salas:
+
+```
+/datassd/proyectos/terravision/terravision_satellite/
+```
 
 ### Airborne Data
 
-DIMAP images: `/datassd/proyectos/terravision/terravision_airborne/`.
+DIMAP images:
+
+```
+/datassd/proyectos/terravision/terravision_airborne/
+```
 
 ---
 

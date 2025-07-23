@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  terravision_app:
+    build:
+      context: ../../..
+      dockerfile: src/main/docker/terravision_cpu.dockerfile
+    ports:
+      - "8501:8501"
+    env_file:
+      - ../../../.env_docker_cpu
+    volumes:
+      - ../../../:/app
+    working_dir: /app

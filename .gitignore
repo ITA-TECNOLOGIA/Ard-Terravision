@@ -5,3 +5,4 @@ __pycache__/
 *.pth
 *.pt
 lightning_logs/*
+checkpoints/*
