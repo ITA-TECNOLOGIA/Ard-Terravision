@@ -3,4 +3,4 @@
 	url = https://github.com/IDEA-Research/Grounded-SAM-2.git
 [submodule "src/main/python/L4/LLaVACustom/LLaVA"]
 	path = src/main/python/L4/LLaVACustom/LLaVA
-	url = https://github.com/cmaranes-ita/LLaVA.git
+	url = https://github.com/ITA-TECNOLOGIA/LLaVA.git
