@@ -170,7 +170,7 @@ class LLaVACustom(L4_Algorithm):
         parser.add_argument(
             "--model-path",
             type=str,
-            default="checkpoints/llava_lora_train_128_10_1e-5_checkpoint-1200",
+            default=os.getenv("LLAVA_CHECKPOINT_DIR"),
         )
         parser.add_argument("--model-base", type=str, default="liuhaotian/llava-v1.5-7b")
         parser.add_argument("--conv-mode", type=str, default=None)

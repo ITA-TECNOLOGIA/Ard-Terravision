@@ -1,0 +1,495 @@
+# --------------------------------------------------------------------------------
+# ARD - TERRAVISION • Streamlit UI Revamp
+# Version: 1.8 (Using authenticate_oidc_client_credentials)
+# --------------------------------------------------------------------------------
+
+import os
+import json
+import time
+import numpy as np
+import streamlit as st
+import openeo
+from PipelineConfig import PipelineConfig
+from datetime import datetime
+# [FIXED IMPORT] We only import download_data
+from utils.openeo_downloader import download_data
+from dotenv import load_dotenv
+
+# Load environment variables (ONLY for paths)
+load_dotenv()
+SHAPEFILES_PATH = os.getenv("SHAPEFILES_PATH")
+OPENEO_DOWNLOADS_PATH = os.getenv("OPENEO_DOWNLOADS_PATH")
+
+# -----------------------------
+# Page config & lightweight CSS
+# -----------------------------
+st.set_page_config(
+    page_title="ARD-TERRAVISION V2",
+    page_icon="🛰️",
+    layout="wide"
+)
+
+st.markdown("""
+<style>
+/* tighter top padding and cleaner container look */
+.main > div { padding-top: 2rem; }
+.block-container { padding-top: 1rem; }
+/* glassy cards */
+div[data-testid="stHorizontalBlock"] > div, .stTabs [data-baseweb="tab-list"] {
+    backdrop-filter: blur(6px);
+}
+.stAlert { border-radius: 14px; }
+.stStatus { border-radius: 14px; }
+img { border-radius: 10px; }
+</style>
+""", unsafe_allow_html=True)
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def list_pipelines(folder: str = "pipelines", ext: str = ".json"):
+    if os.path.isdir(folder):
+        return sorted(f for f in os.listdir(folder) if f.endswith(ext))
+    return []
+
+def normalize_image(img: np.ndarray) -> np.ndarray:
+    arr = img.astype(np.float32)
+    mn, mx = arr.min(), arr.max()
+    return (arr - mn) / (mx - mn) if mx > mn else arr
+
+
+def display_stage(stage_title: str, results: list):
+    st.subheader(stage_title, anchor=False)
+    if not results:
+        st.info("No algorithms found for this stage.")
+        return
+
+    for alg_name, imgs, raw_items in results:
+        with st.expander(f"🧩 {alg_name}", expanded=True):
+            if imgs:
+                st.markdown("**Visual outputs**")
+                if len(imgs) == 1:
+                    st.image(imgs[0], use_container_width=True, caption="Output 1")
+                else:
+                    cols = st.columns(3)
+                    for idx, im in enumerate(imgs):
+                        cols[idx % 3].image(
+                            im,
+                            use_container_width=True,
+                            caption=f"Output {idx+1}"
+                        )
+                st.success("Completed successfully.")
+            else:
+                st.warning("No visual output produced.")
+
+            display_algorithm_details(raw_items)
+
+def display_algorithm_details(items):
+    """
+    Render extra details stored inside out.algorithm_results.
+    No nested expanders.
+    """
+    if not items:
+        return
+
+    for out_idx, out in enumerate(items, start=1):
+        alg_results = getattr(out, "algorithm_results", None)
+        if alg_results is None or (
+            isinstance(alg_results, (list, tuple)) and len(alg_results) == 0
+        ):
+            continue
+        if not isinstance(alg_results, (list, tuple)):
+            alg_results = [alg_results]
+        for fr_idx, fr in enumerate(alg_results, start=1):
+            sam_scores = getattr(fr, "sam_scores", None)
+            if sam_scores is None:
+                continue
+            st.markdown(f"### Details • Output {out_idx} • Frame {fr_idx}")
+
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "Input / Detections",
+                "Florence raw text",
+                "Florence parsed output",
+                "SAM scores"
+            ])
+
+            with tab1:
+                kwargs = getattr(fr, "kwargs", None)
+                if kwargs is not None:
+                    st.markdown("**Input kwargs**")
+                    st.json(kwargs)
+
+                detections = getattr(fr, "detections", None)
+                sam_scores = getattr(fr, "sam_scores", None)
+
+                if detections:
+                    st.markdown("**Detections**")
+                    det_rows = []
+                    for i, det in enumerate(detections, start=1):
+                        score = None
+                        if sam_scores is not None and i - 1 < len(sam_scores):
+                            score = sam_scores[i - 1]
+
+                        det_rows.append({
+                            "idx": i,
+                            "class_id": getattr(det, "class_id", None),
+                            "confidence": getattr(det, "confidence", None),
+                            "sam_score": score,
+                            "x": det.bbox.get("x") if getattr(det, "bbox", None) else None,
+                            "y": det.bbox.get("y") if getattr(det, "bbox", None) else None,
+                            "width": det.bbox.get("width") if getattr(det, "bbox", None) else None,
+                            "height": det.bbox.get("height") if getattr(det, "bbox", None) else None,
+                        })
+                    st.dataframe(det_rows, use_container_width=True)
+                else:
+                    st.info("No detections available.")
+
+            with tab2:
+                florence_raw_text = getattr(fr, "florence_raw_text", None)
+                if florence_raw_text:
+                    st.markdown("**Raw text returned by Florence-2**")
+                    st.code(florence_raw_text, language="text")
+                else:
+                    st.info("No Florence raw text available.")
+
+            with tab3:
+                florence_parsed_output = getattr(fr, "florence_parsed_output", None)
+                if florence_parsed_output is not None:
+                    st.markdown("**Parsed Florence-2 output**")
+                    st.json(florence_parsed_output)
+                else:
+                    st.info("No Florence parsed output available.")
+
+            with tab4:
+                sam_scores = getattr(fr, "sam_scores", None)
+                if sam_scores is not None:
+                    st.write(sam_scores)
+                else:
+                    st.info("No SAM scores available.")
+
+            st.markdown("---")
+                    
+# -----------------------------
+# Sidebar controls
+# -----------------------------
+with st.sidebar:
+    # --- [ Logo and Title Section ] ---
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.image("figures/Terravision_Logo_Official.png", use_container_width=True)
+    with col_b:
+        st.image("figures/ITA_Logo.png", use_container_width=True)
+    st.markdown("<h2 style='text-align:center;'>ARD-TERRAVISION V2</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;color:gray; margin-bottom: 20px;'>Interactive pipeline runner</p>", unsafe_allow_html=True)
+    st.divider()
+
+    # --- [ Pipeline Configuration Section ] ---
+    st.header("⚙️ Pipeline Configuration")
+    pipeline_files = list_pipelines()
+    if not pipeline_files:
+        st.error("No pipeline JSON files found in 'pipelines'.")
+        st.stop()
+    selected = st.selectbox("Choose a pipeline", pipeline_files, index=0)
+
+    if selected:
+        try:
+            pipeline_path = os.path.join("pipelines", selected)
+            with open(pipeline_path, "r") as f:
+                config_data = json.load(f)
+            datacube_path = config_data.get("l1_input", {}).get("params", {}).get("datacube_path", "Not found")
+            st.info(f"Datacube in this pipeline: `{datacube_path}`")
+        except (json.JSONDecodeError, KeyError, FileNotFoundError):
+            st.warning("Could not read datacube path from the selected pipeline.")
+
+    openeo_files = ["Default"] + list_pipelines(folder=OPENEO_DOWNLOADS_PATH, ext=".nc")
+    selected_openeo_input = st.selectbox("Choose an OpenEO input (optional)", openeo_files, index=0)
+    autorun = st.toggle("Auto-run on selection", value=False)
+    run_btn = st.button("▶️ Run Pipeline", use_container_width=True)
+    st.divider()
+
+    # --- [ Manual Upload Section ] ---
+    st.header("📂 Manual Upload")
+    uploaded_nc_file = st.file_uploader("Upload .nc Datacube", type=["nc"])
+    uploaded_json_file = st.file_uploader("Upload .json Pipeline", type=["json"])
+    st.caption("Note: Uploading a `.nc` file will override the datacube path from any uploaded `.json`.")
+    if uploaded_json_file:
+        try:
+            uploaded_json_file.seek(0)
+            config_data = json.load(uploaded_json_file)
+            datacube_path = config_data.get("l1_input", {}).get("params", {}).get("datacube_path", "Not found")
+            st.info(f"Datacube in JSON: `{datacube_path}`")
+        except (json.JSONDecodeError, KeyError):
+            st.warning("Could not read datacube path from the uploaded JSON.")
+    run_uploaded_btn = st.button("▶️ Run Uploaded Pipeline", use_container_width=True)
+    st.divider()
+
+    # -----------------------------------------------------------------
+    # --- [NEW] OpenEO Login Section (Client Credentials UI) ---
+    # -----------------------------------------------------------------
+    st.header("🔐 OpenEO Login")
+    
+    # Initialize session state for connection
+    if "openeo_connection" not in st.session_state:
+        st.session_state.openeo_connection = None
+    if "openeo_job_id" not in st.session_state:
+        st.session_state.openeo_job_id = None
+    if "downloaded_file_path" not in st.session_state:
+        st.session_state.downloaded_file_path = None
+
+    if st.session_state.openeo_connection:
+        st.success("You are connected to OpenEO.")
+        if st.button("Logout", use_container_width=True):
+            st.session_state.openeo_connection = None
+            st.rerun()
+    else:
+        st.info("Login with your OIDC Client Credentials from Copernicus Dashboard.")
+        client_id = st.text_input("Client ID")
+        client_secret = st.text_input("Client Secret", type="password")
+
+        if st.button("Login", use_container_width=True):
+            if client_id and client_secret:
+                try:
+                    with st.spinner("Authenticating..."):
+                        
+                        # --- [THIS IS YOUR NEW, CORRECT LOGIC] ---
+                        # 1. Connect (using your specified URL)
+                        connection = openeo.connect("openeo.dataspace.copernicus.eu")
+                        
+                        # 2. Authenticate (using your specified function)
+                        connection.authenticate_oidc_client_credentials(
+                            client_id=client_id,
+                            client_secret=client_secret
+                        )
+                        # --- [END OF NEW LOGIC] ---
+
+                        # 3. Test connection (good practice)
+                        connection.list_jobs(limit=1) 
+                        
+                        # 4. Save the successful connection
+                        st.session_state.openeo_connection = connection
+                        st.success("Login Successful!")
+                        time.sleep(1) 
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Login Failed: {e}")
+                    st.session_state.openeo_connection = None
+            else:
+                st.warning("Please enter both Client ID and Client Secret.")
+    st.divider() 
+    # --- [END] of OpenEO Login Section ---
+    # -----------------------------------------------------------------
+
+
+    # --- [ OpenEO Data Download Section ] ---
+    st.header("🛰️ OpenEO Data Download")
+    try:
+        shapefiles = [f for f in os.listdir(SHAPEFILES_PATH) if f.endswith('.shp')]
+    except FileNotFoundError:
+        shapefiles = []
+    if not shapefiles:
+        st.warning(f"No shapefiles found in the directory: {SHAPEFILES_PATH}")
+        st.stop()
+    selected_shapefile = st.selectbox("Choose a Shapefile", shapefiles)
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("Start Date", datetime(2025, 10, 12))
+    with col2:
+        end_date = st.date_input("End Date", datetime(2025, 10, 30))
+    sync_download = st.checkbox("Download to my computer")
+    download_btn = st.button("📥 Download Data", use_container_width=True)
+
+    # -----------------------------------------------------------------
+    # --- [Download Button Logic - UNCHANGED, now works] ---
+    # -----------------------------------------------------------------
+    if download_btn:
+        
+        # 1. Check if user is logged in
+        if not st.session_state.openeo_connection:
+            st.error("You must be logged in to download data. Please login above.")
+        
+        # 2. Check if shapefile is selected
+        elif not selected_shapefile:
+            st.warning("Please select a shapefile to start the download.")
+        
+        # 3. If both checks pass, run the download
+        else:
+            try:
+                # Get the connection we already saved
+                connection = st.session_state.openeo_connection
+                shapefile_path = os.path.join(SHAPEFILES_PATH, selected_shapefile)
+
+                if sync_download:
+                    with st.spinner("Downloading data synchronously... This might take a while."):
+                        file_path = download_data(connection, shapefile_path, start_date, end_date, synchronous=True)
+                        st.session_state.downloaded_file_path = file_path
+                        st.success("File ready for download!")
+                else:
+                    with st.spinner("Initiating download... This may take a moment."):
+                        job_id = download_data(connection, shapefile_path, start_date, end_date, synchronous=False)
+                        st.session_state.openeo_job_id = job_id
+                        st.success(f"Download job started with ID: {job_id}")
+
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+                
+    if st.session_state.downloaded_file_path:
+        with open(st.session_state.downloaded_file_path, "rb") as fp:
+            st.download_button(
+                label="📥 Click to Download",
+                data=fp,
+                file_name=os.path.basename(st.session_state.downloaded_file_path),
+                mime="application/x-netcdf",
+                use_container_width=True
+            )
+
+# --- [ Session state for pipeline ] ---
+if "run_pipeline" not in st.session_state:
+    st.session_state.run_pipeline = False
+if autorun:
+    st.session_state.run_pipeline = True
+elif run_btn:
+    st.session_state.run_pipeline = True
+elif run_uploaded_btn:
+    st.session_state.run_pipeline = True
+
+# -----------------------------
+# Main content area
+# -----------------------------
+st.header("Pipeline Runner", anchor=False) 
+st.write(
+    "Use the tabs to follow each stage. All steps log their status, "
+    "and images are shown in expandable cards."
+)
+tabs = st.tabs(["L1 • Input", "L2 • Processing", "L3 • Results", "L4 • Fusion", "Logs"])
+log_lines = []
+def log(msg: str):
+    log_lines.append(msg)
+
+# --- [ Pipeline Runner Logic (Unchanged, but bugfixed) ] ---
+if st.session_state.run_pipeline:
+    if uploaded_json_file is not None:
+        uploaded_json_file.seek(0)
+        config_data = json.load(uploaded_json_file)
+        selected_pipeline_name = uploaded_json_file.name
+        log(f"[INIT] Loaded uploaded config {selected_pipeline_name}")
+    else:
+        pipeline_path = os.path.join("pipelines", selected)
+        with open(pipeline_path, "r") as f:
+            config_data = json.load(f)
+        selected_pipeline_name = selected
+        log(f"[INIT] Loaded config {selected_pipeline_name}")
+
+    with st.status(f"Loading configuration: **{selected_pipeline_name}**", expanded=True) as s:
+        if uploaded_nc_file is not None:
+            save_path = os.path.join(OPENEO_DOWNLOADS_PATH, uploaded_nc_file.name)
+            with open(save_path, "wb") as f:
+                f.write(uploaded_nc_file.getbuffer())
+            try:
+                config_data["l1_input"]["params"]["datacube_path"] = save_path
+                st.write(f"✔️ Overriding input with uploaded .nc file: **{uploaded_nc_file.name}**")
+                log(f"[INIT] Overriding L1 input with uploaded file {save_path}")
+            except KeyError:
+                st.warning("Could not find 'l1_input.params.datacube_path' to override.")
+                log("[INIT] Failed to override L1 input path.")
+        elif selected_openeo_input != "Default":
+            openeo_path = os.path.join(OPENEO_DOWNLOADS_PATH, selected_openeo_input)
+            try:
+                config_data["l1_input"]["params"]["datacube_path"] = openeo_path
+                st.write(f"✔️ Overriding input with: **{selected_openeo_input}**")
+                log(f"[INIT] Overriding L1 input with {openeo_path}")
+            except KeyError:
+                st.warning("Could not find 'l1_input.params.datacube_path' to override.")
+                log("[INIT] Failed to override L1 input path.")
+
+        cfg = PipelineConfig.from_dict(config_data)
+        st.write("✔️ Config loaded.")
+        time.sleep(0.2)
+        s.update(label="Configuration ready", state="complete")
+
+    with tabs[0]:
+        with st.status("Stage L1: Input Loading", expanded=True) as s:
+            try:
+                l1_data = cfg.run_l1()
+                st.write("**Loaded input:**")
+                
+                # --- [BUG FIX] Was ll1_data, changed to l1_data ---
+                st.code(str(l1_data), language="text") 
+                
+                log("[L1] Input loaded")
+                try:
+                    img = getattr(l1_data, 'get_debug_image', lambda: None)()
+                    if img is not None:
+                        st.image(img, caption="Input Debug Image", use_container_width=True)
+                    else:
+                        st.info("No debug image available for input.")
+                except Exception as e:
+                    st.error(f"Input debug failed: {e}")
+                    log(f"[L1] Debug image error: {e}")
+                s.update(label="L1 complete", state="complete")
+            except Exception as e:
+                st.error(f"L1 failed: {e}")
+                log(f"[L1] Failed: {e}")
+                s.update(label="L1 failed", state="error")
+
+    def run_stage(algorithms, stage_name, tab_obj):
+        outputs = []
+        with tab_obj:
+            with st.status(f"{stage_name}", expanded=True) as s:
+                progress = st.progress(0)
+                total = max(1, len(algorithms))
+
+                for i, alg in enumerate(algorithms, start=1):
+                    name = alg.__class__.__name__
+                    st.write(f"• Running **{name}** …")
+                    log(f"[{stage_name}] Running {name}")
+
+                    res = alg.process_data(l1_data)
+                    imgs = []
+                    items = []
+
+                    if res is not None:
+                        items = res if isinstance(res, (list, tuple)) else [res]
+                        for out in items:
+                            pil = getattr(out, 'debug_image', None)
+                            if pil is not None:
+                                arr = np.array(pil)
+                                imgs.append(normalize_image(arr))
+
+                    outputs.append((name, imgs, items))
+                    progress.progress(i / total)
+
+                s.update(label=f"{stage_name} complete", state="complete")
+
+            display_stage(stage_name, outputs)
+
+        return outputs
+
+    l2_outputs = run_stage(cfg.l2_algorithms, "Stage L2: Processing Algorithms", tabs[1])
+    l3_outputs = run_stage(cfg.l3_algorithms, "Stage L3: Generating Results", tabs[2])
+
+    with tabs[3]:
+        with st.status("Stage L4: Final Fusion", expanded=True) as s:
+            try:
+                final = cfg.run_l4(l1_data)
+                st.success("L4 fusion completed.")
+                st.write("**Final Output:**")
+                st.code(str(final), language="text")
+                log("[L4] Fusion completed")
+                s.update(label="L4 complete", state="complete")
+            except Exception as e:
+                st.error(f"L4 fusion failed: {e}")
+                log(f"[L4] Failed: {e}")
+                s.update(label="L4 failed", state="error")
+
+    with tabs[4]:
+        st.subheader("Run Log", anchor=False)
+        if log_lines:
+            st.code("\n".join(log_lines), language="text")
+        else:
+            st.info("No logs captured.")
+
+    st.balloons()
+    st.success("Pipeline finished!")
+    st.session_state.run_pipeline = False
+else:
+    st.info("Select a pipeline and click **Run Pipeline** (or enable **Auto-run**).")

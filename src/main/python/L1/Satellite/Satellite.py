@@ -40,11 +40,26 @@ class Satellite(L1_Input):
     def get_datacube(self):
         logger.info("Retrieving full datacube")
         return self.datacube
+    
+    def get_datacube_subset(self, bands: list[str], time_indices: list[int]):
+        logger.debug(f"Subsetting datacube for bands={bands}, time_indices={time_indices}")
+        datacube_subset = self.datacube
+        # Select Variables (bands)
+        if bands is not None:
+            if not isinstance(bands, (list, tuple)):
+                bands = [bands]
+            datacube_subset = datacube_subset[bands]
+        # Select coordinates (time)
+        if time_indices is not None:
+            datacube_subset = datacube_subset.isel(t=time_indices)
+        logger.debug(f"Retrieved datacube subset shape: {datacube_subset.coords} and bands: {bands}")
+        return datacube_subset
 
     def get_debug_image(self):
         logger.info("Generating debug RGB image from sentinel bands")
         time_index = 0 # TODO NOTE THAT THE DEBUG IMAGE IS HARD CODED TO TIME INDEX 0
         rgb_image = self.get_rgb_image(time_index=time_index)
+        rgb_image = np.nan_to_num(rgb_image, nan=0.0)
         img = rgb_image.astype(np.float32)
         for c in range(3):
             band = img[..., c]
@@ -85,8 +100,8 @@ class Satellite(L1_Input):
         return mask
 
     def get_ground_truth(self, time_index: int, band_indices: list[str]): # TODO NOTE GORUND TRUTH IS HARD CODED!!!
-        logger.warning("Ground truth timestamp is hardcoded to index 18")
-        rgb = self._get_array(band_indices, 18, "ground_truth_rgb")
+        #logger.warning("Ground truth timestamp is hardcoded to index 18")
+        rgb = self._get_array(band_indices, time_index, "ground_truth_rgb")
         logger.debug(f"Retrieved ground truth array shape {rgb.shape}")
         return rgb
 

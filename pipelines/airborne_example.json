@@ -11,9 +11,14 @@
     "l3_algorithms": [
       {
         "type": "ObjectDetectionGroundedSAM2",
-        "params": [
-          {"airborne_tile": "v1-0-1"}
-        ]
+        "params": {
+          "detection_prompt": "trees",
+          "args_list": [
+            {
+              "airborne_tile": "v1-5-5"
+            }
+          ]
+        }
       }
     ],
     "l4_algorithm": {

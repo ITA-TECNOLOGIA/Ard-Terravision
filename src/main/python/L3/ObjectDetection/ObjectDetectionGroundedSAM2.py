@@ -22,7 +22,7 @@ import supervision as sv
 from L3.L3_Algorithm import L3_Algorithm, L3_result
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
-from transformers import AutoProcessor, AutoModelForCausalLM
+from transformers import AutoProcessor, Florence2ForConditionalGeneration
 
 @dataclass
 class Detection:
@@ -37,6 +37,9 @@ class FrameResult:
     annotated_boxes_image: Image.Image
     annotated_mask_image: Image.Image
     detections: List[Detection]
+    florence_raw_text: str = ""
+    florence_parsed_output: Dict[str, Any] = None
+    sam_scores: List[float] = None
 
 def run_florence2(task_prompt, text_input, model, processor, image):
     assert model is not None
@@ -57,28 +60,36 @@ def run_florence2(task_prompt, text_input, model, processor, image):
         do_sample=False,
         num_beams=3,
     )
+
     generated_text = processor.batch_decode(
         generated_ids,
         skip_special_tokens=False
     )[0]
-    return processor.post_process_generation(
+
+    parsed_output = processor.post_process_generation(
         generated_text,
         task=task_prompt,
         image_size=(image.width, image.height)
     )
-
+    return {
+        "raw_text": generated_text,
+        "parsed_output": parsed_output
+    }
+    
 class ObjectDetectionGroundedSAM2(L3_Algorithm):
-    def __init__(self, args_list: List[Dict[str, Any]]):
+    def __init__(self, 
+                 detection_prompt: str,
+                 args_list: List[Dict[str, Any]]):
         super().__init__()
         if not isinstance(args_list, list) or not all(isinstance(d, dict) for d in args_list):
             raise ValueError("`args_list` must be a list of dicts")
         self.args_list = args_list
 
         # Config
-        FLORENCE2_MODEL_ID = "microsoft/Florence-2-large"
-        SAM2_CHECKPOINT     = "./checkpoints/sam2.1_hiera_large.pt"
-        SAM2_CONFIG         = "configs/sam2.1/sam2.1_hiera_l.yaml"
-        self.detection_prompt = "house"
+        # FLORENCE2_MODEL_ID = "microsoft/Florence-2-large"
+        SAM2_CHECKPOINT = os.getenv("OBJDET_SAM_CHECKPOINT")
+        SAM2_CONFIG = os.getenv("OBJDET_SAM_CONFIG")
+        self.detection_prompt = detection_prompt
 
         # parse DEVICE into a torch.device
         DEVICE = os.getenv("DEVICE", "cpu")
@@ -90,11 +101,11 @@ class ObjectDetectionGroundedSAM2(L3_Algorithm):
                 torch.backends.cudnn.allow_tf32 = True
 
         # build Florence-2 on the parsed device
-        self.florence2_model = AutoModelForCausalLM.from_pretrained(
-            FLORENCE2_MODEL_ID, trust_remote_code=True, torch_dtype="auto"
+        self.florence2_model = Florence2ForConditionalGeneration.from_pretrained(
+            "florence-community/Florence-2-large", trust_remote_code=True, torch_dtype="auto"
         ).eval().to(self.torch_device)
         self.florence2_processor = AutoProcessor.from_pretrained(
-            FLORENCE2_MODEL_ID, trust_remote_code=True
+            "florence-community/Florence-2-large", trust_remote_code=True
         )
 
         # build SAM 2 on the same device
@@ -118,13 +129,17 @@ class ObjectDetectionGroundedSAM2(L3_Algorithm):
             dtype = torch.bfloat16 if device_type == "cuda" else torch.float32
             with torch.autocast(device_type=device_type, dtype=dtype):
                 prompt = "<OPEN_VOCABULARY_DETECTION>"
-                flor = run_florence2(
+                florence_output = run_florence2(
                     prompt,
                     self.detection_prompt,
                     self.florence2_model,
                     self.florence2_processor,
                     pil_input
-                )[prompt]
+                )
+
+            raw_text = florence_output["raw_text"]
+            florence_parsed_output = florence_output["parsed_output"]
+            flor = florence_parsed_output[prompt]
 
             boxes = np.array(flor["bboxes"])
             names = flor["bboxes_labels"]
@@ -138,6 +153,8 @@ class ObjectDetectionGroundedSAM2(L3_Algorithm):
                 multimask_output=False
             )
             masks = masks.squeeze(1) if masks.ndim == 4 else masks
+
+            sam_scores = scores.tolist() if hasattr(scores, "tolist") else list(scores)
 
             # annotate
             dets = sv.Detections(xyxy=boxes, mask=masks.astype(bool),
@@ -158,7 +175,10 @@ class ObjectDetectionGroundedSAM2(L3_Algorithm):
                               "width":int(b[2]-b[0]), "height":int(b[3]-b[1])},
                         class_id=name
                     ) for b, name in zip(boxes, names)
-                ]
+                ],
+                florence_raw_text=raw_text,
+                florence_parsed_output=florence_parsed_output,
+                sam_scores=sam_scores
             )
 
             w, h = pil_input.size

@@ -6,3 +6,5 @@ __pycache__/
 *.pt
 lightning_logs/*
 checkpoints/*
+data/examples/*
+Pipeline

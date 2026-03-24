@@ -6,6 +6,9 @@ import numpy as np
 import xml.etree.ElementTree as ET
 from rasterio.plot import reshape_as_raster
 
+from dotenv import load_dotenv
+load_dotenv()
+
 def extract_center_angle(root, tag_name):
     for elem in root.iter(tag_name):
         for child in elem:
@@ -14,7 +17,7 @@ def extract_center_angle(root, tag_name):
     return np.nan
 
 # === File Paths ===
-data_path = '/datassd/proyectos/terravision/terravision_EnMAP'
+data_path = os.getenv("ENMAP_DATA_PATH")
 
 for mine in os.listdir(data_path):
     mine_name = mine.split('_')[-1]

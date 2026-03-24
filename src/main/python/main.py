@@ -25,7 +25,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-c", "--config",
-        default="pipelines/satellite_example.json",
+        default="pipelines/satellite_example_canteras_change_detection.json",
+        #default="pipelines/qwen_example.json",
         help="Path to pipeline JSON configuration"
     )
     args = parser.parse_args()

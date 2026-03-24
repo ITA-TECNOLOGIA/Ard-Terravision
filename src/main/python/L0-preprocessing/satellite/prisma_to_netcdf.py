@@ -1,9 +1,14 @@
 import os
+import glob
 import numpy as np
 from netCDF4 import Dataset
 from datetime import datetime
 from pyproj import CRS as pyprojCRS
+from pyproj import Transformer
 import h5py
+import utm
+from dotenv import load_dotenv
+
 
 def extract_prisma_data(path_img):
     with h5py.File(path_img, 'r') as h5f:
@@ -66,10 +71,6 @@ def extract_prisma_data(path_img):
             timestamp = None
 
         return hs_img_filtered, CW_filtered, lat, lon, solar_zenith, solar_azimuth, observing_angle, timestamp
-
-from pyproj import Transformer
-import numpy as np
-import utm
 
 def infer_utm_epsg(lat, lon):
     lat0 = lat[lat.shape[0] // 2, lat.shape[1] // 2]
@@ -209,18 +210,26 @@ def save_to_netcdf(hs, wavelengths, x_coords, y_coords,
 
 
 if __name__ == "__main__":
-    input_file = '/datassd/proyectos/terravision/terravision_PRISMA/PRS_L2D_STD_20220712110958_20220712111002_0001.he5'
-    output_nc = 'PRISMANETCDF/output_prisma_datacube.nc'
 
-    hs, wavelengths, lat, lon, solar_zenith, solar_azimuth, observing_angle, timestamp = extract_prisma_data(input_file)
+    load_dotenv()
+
+    data_path = os.getenv("PRISMA_DATA_PATH")
+
+    all_files = glob.glob(os.path.join(data_path, "*.he5"))
+
+    for input_file in all_files:
+
+        hs, wavelengths, lat, lon, solar_zenith, solar_azimuth, observing_angle, timestamp = extract_prisma_data(input_file)
     
-    epsg_code = infer_utm_epsg(lat, lon)
-    x_coords, y_coords = convert_latlon_to_utm_coords(lat, lon, epsg_code)
+        epsg_code = infer_utm_epsg(lat, lon)
+        x_coords, y_coords = convert_latlon_to_utm_coords(lat, lon, epsg_code)
 
-    save_to_netcdf(
-        hs, wavelengths, x_coords, y_coords,
-        solar_zenith, solar_azimuth, observing_angle,
-        timestamp, output_nc, epsg_code
-    )
-    print(f"Saved NetCDF to {output_nc}")
+        output_path = input_file.replace(".he5", ".nc")
+
+        save_to_netcdf(
+            hs, wavelengths, x_coords, y_coords,
+            solar_zenith, solar_azimuth, observing_angle,
+            timestamp, output_path, epsg_code
+        )
+        print(f"Saved NetCDF to {output_path}")
 

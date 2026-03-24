@@ -29,9 +29,12 @@ class CloudMaskingResult:
 
 class CloudMasking(L2_Algorithm):
     def __init__(self,
-                 time_indices: List[int],
-                 band_names: List[str] = [],
-                 rgb_band_names: List[List[str]] = []):  # TODO actually is bgr
+                time_indices: List[int],
+                gt_time_index: int | None = None,
+                band_names: List[str] = [],
+                rgb_band_names: List[List[str]] = []):
+        
+        self.gt_time_index = gt_time_index  
         self.time_indices = time_indices
         self.band_names = band_names
         self.rgb_band_names = rgb_band_names
@@ -45,8 +48,52 @@ class CloudMasking(L2_Algorithm):
             self.accelerator = "cpu"
             self.devices     = 1
 
+    def _find_best_gt_time_index(self, input, exclude_indices: List[int]) -> int:
+        best_idx = None
+        max_clean_score = -1.0
+
+        try:
+            num_times = len(input.times)
+        except:
+            num_times = 100 
+
+        for t in range(num_times):
+            if t in exclude_indices:
+                continue
+            
+            try:
+                mask = input.get_cloud_mask(t)
+                if mask is None:
+                    continue
+
+                clean_percentage = np.mean(mask)
+                
+                print(f"[CloudMasking] Evaluando index {t}: {clean_percentage*100:.2f}% limpio (blanco)")
+
+                if clean_percentage > max_clean_score:
+                    max_clean_score = clean_percentage
+                    best_idx = t
+                
+                if max_clean_score >= 0.999:
+                    break
+            except Exception:
+                break
+
+        if best_idx is None:
+            raise ValueError("No se encontró ninguna imagen válida.")
+
+        print(f"[CloudMasking] SELECCIONADO index {best_idx} como GT ({max_clean_score*100:.2f}% superficie limpia)")
+        return best_idx
+
     def process_data(self, input) -> List[L2_result]:
         results: List[L2_result] = []
+
+        # Auto-select ground truth if not provided
+        if self.gt_time_index is None:
+            self.gt_time_index = self._find_best_gt_time_index(
+                input,
+                exclude_indices=self.time_indices
+            )
 
         for time_index in self.time_indices:
             print("Only processing rgb bands") # TODO The algorithm should work with any band
@@ -57,9 +104,11 @@ class CloudMasking(L2_Algorithm):
                     cloud_mask = cloud_mask.astype(np.uint8)
 
                 # Retrieve and transpose ground truth and input image.
-                ground_truth = input.get_ground_truth(time_index, rgb_band_name)
+                ground_truth = input.get_ground_truth(self.gt_time_index, rgb_band_name)
+                ground_truth = np.nan_to_num(ground_truth)
                 ground_truth = np.transpose(ground_truth, (1, 2, 0))
                 image_with_clouds = input.get_image(time_index, rgb_band_name)
+                image_with_clouds = np.nan_to_num(image_with_clouds)
                 image_with_clouds = np.transpose(image_with_clouds, (1, 2, 0))
 
                 # Save the original size for later resizing.

@@ -16,9 +16,9 @@
         "module": "streamlit",
         "args": [
             "run",
-            "${file}",
+            "${workspaceFolder}/src/main/python/main_streamlit_v2.py",
             "--server.port",
-            "2002"
+            "2025"
         ]
       },
       {

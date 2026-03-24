@@ -1,6 +1,13 @@
+[submodule "src/main/python/L3/ObjectDetection/detrex"]
+	path = src/main/python/L3/ObjectDetection/detrex
+	url = https://github.com/IDEA-Research/detrex.git
+	branch = main
 [submodule "src/main/python/L3/ObjectDetection/Grounded-SAM-2"]
 	path = src/main/python/L3/ObjectDetection/Grounded-SAM-2
 	url = https://github.com/IDEA-Research/Grounded-SAM-2.git
 [submodule "src/main/python/L4/LLaVACustom/LLaVA"]
 	path = src/main/python/L4/LLaVACustom/LLaVA
 	url = https://github.com/ITA-TECNOLOGIA/LLaVA.git
+[submodule "src/main/python/L3/ObjectDetection/detrex/detectron2"]
+	path = src/main/python/L3/ObjectDetection/detrex/detectron2
+	url = https://github.com/facebookresearch/detectron2.git

@@ -89,33 +89,50 @@ Key highlights:
 
 ## Installation
 
+   For a recursive installation, clone via: 
+   ```bash
+   git clone --recurse-submodules <repo>
+   ```
+
+
 1. **Create a Python environment (recommended conda)**:
 
    ```bash
-   conda create -n terravision_ard python=3.10
+   conda env create -f environment.yml
    conda activate terravision_ard
    ```
-
-2. **Create a `.env` file** at the project root with your desired device setting:
-
-   ```dotenv
-   DEVICE=cuda:1
-   ```
-
-   > ⚙️ The pipeline will load this environment variable (using `python-dotenv`) to configure GPU usage for all algorithms.
-
-3. **Install dependencies**:
-
+   **Optional**
+   You may also need to run the following command to start with a clean environment:
    ```bash
-   pip install python-dotenv
+   pip freeze | xargs pip uninstall -y
    ```
 
-4. **Install PyTorch (with CUDA 12.6 support)**:
+2. **Upgrade Pip, Setuptools, and Wheel**:
+
+   It's a good practice to upgrade these core packaging tools before installing other dependencies.
+   
+   ```bash
+   pip install --upgrade pip setuptools wheel
+   ```
+
+3. **Install PyTorch (with CUDA 12.6 support)**:
 
    Since the environment has been tested on **salas.ita.es** with `CUDA 12.6`:
 
    ```bash
-   pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+   pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu126
+   ```
+
+4. **Install Flash Attention**:
+
+   For performance, we use `flash-attention`. It's recommended to install it from a pre-built wheel to avoid compilation issues.
+
+   ```bash
+   # 1. Download the pre-built wheel
+   wget https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.7cxx11abiTRUE-cp310-cp310-linux_x86_64.whl
+
+   # 2. Install the downloaded file
+   pip install flash_attn-2.8.3+cu12torch2.7cxx11abiTRUE-cp310-cp310-linux_x86_64.whl
    ```
 
 5. **Install the core dependencies**:
@@ -124,20 +141,57 @@ Key highlights:
    pip install -r src/main/requirements.txt
    ```
 
-6. **Install Grounded-SAM-2 and dependencies**:
+6. **Install Detrex for L3 Object Detection**:
 
    ```bash
+   git submodule update --init --recursive
+   
+   # Install Detectron2
+   cd src/main/python/L3/ObjectDetection/detrex/
+   pip install -e detectron2 --no-build-isolation
+
+   # Install Detrex
+   pip install -e . --no-build-isolation
+
+   # Go back to home
+   cd -
+   ```
+
+7. **Install Grounded-SAM-2 and dependencies**:
+
+   ```bash
+
    pip install -e src/main/python/L3/ObjectDetection/Grounded-SAM-2
    pip install src/main/python/L3/ObjectDetection/Grounded-SAM-2[demo]
    pip install --no-build-isolation -e src/main/python/L3/ObjectDetection/Grounded-SAM-2/grounding_dino
    ```
 
-7. **Download and move pretrained checkpoints**:
+8. **Download and move pretrained checkpoints**:
 
    ```bash
    bash src/main/python/L3/ObjectDetection/Grounded-SAM-2/checkpoints/download_ckpts.sh
-   mv sam2.1_hiera_*.pt checkpoints/
+   mkdir -p checkpoints
+   mkdir -p checkpoints/ObjectDetection
+   mv sam2.1_hiera_*.pt checkpoints/ObjectDetection/
    ```
+
+9. **Download pretrained models from FTP**:
+
+   Manually download the pretrained weights and place them inside the `checkpoints/` directory.
+
+   Your folder structure should look like this:
+
+   ```
+      checkpoints/
+      ├── ChangeDetection/
+      ├── llava_lora_train_128_10_1e-5_checkpoint-1200/
+      ├── LulcClassification/
+      ├── ObjectDetection/
+      └── Qwen/
+         └── checkpoint-26342/
+   ```
+
+   ⚠️ These files are not included in the repository due to their size. Make sure the directory structure matches exactly, otherwise the code may fail to locate the models.
 
 ---
 
@@ -155,8 +209,45 @@ Key highlights:
 
 2. **Pipeline configuration**: Place your JSON under `pipelines/`, e.g.:
 
-   * `pipelines/satellite_example.json`
+   * `pipelines/satellite_example_canteras.json`
    * `pipelines/airborne_example.json`
+   * `pipelines/env_indicator_example.json`
+   * `pipelines/qwen_example.json`
+
+### Streamlit UI
+
+The repository includes an interactive Streamlit application for running pipelines and downloading data.
+
+1. **Run the Streamlit app**:
+   ```bash
+   streamlit run src/main/python/main_streamlit_v2.py
+   ```
+
+2. **Features**:
+   - **Pipeline Runner**: Select and run any of the available JSON pipeline configurations.
+   - **OpenEO Data Downloader**: Download Sentinel-2 data for a specific area of interest (AOI) and time range.
+     - Select a shapefile (`.shp`) that defines your AOI.
+     - Choose a start and end date.
+     - The downloaded data will be saved as a NetCDF file in the `data/openeo_downloads` directory.
+   - **Override Pipeline Input**: You can override the input of a pipeline with a downloaded OpenEO dataset. Select the downloaded file from the "Choose an OpenEO input" dropdown.
+
+3. **OpenEO Login**:
+   - The Streamlit application now requires authentication to download data from Copernicus.
+   - You must create your own OIDC client credentials.
+   - Go to the [Copernicus Dataspace Dashboard](https://shapps.dataspace.copernicus.eu/dashboard).
+   - Create a new set of credentials and copy the **Client ID** and **Client Secret**.
+   - Use these credentials in the "OpenEO Login" section of the Streamlit sidebar to authenticate.
+
+### Custom Change Detection Data
+
+For change detection algorithms, you might want to use a custom NetCDF (`.nc`) file where a significant amount of time has passed between the captured images. You can generate such a file using the script located at `src/main/python/utils/download_and_combine.py`.
+
+This script allows you to:
+1.  Define two distinct time periods.
+2.  Download Sentinel-2 data for a specific Area of Interest (AOI) for each period.
+3.  Combine the two datasets into a single NetCDF file, sorted by time.
+
+To use it, you'll need to modify the script to set your desired `shapefile_name`, `start_date_1`, `end_date_1`, `start_date_2`, and `end_date_2`. This is particularly useful for testing and validating change detection models on data with known temporal differences.
 
 ---
 
@@ -193,6 +284,62 @@ If you prefer to run Terravision in a container with GPU acceleration, follow th
 
 4. **Select the GPU pipeline**
    In the Streamlit UI, choose the **satellite\_example\_docker\_gpu** pipeline to run the example satellite workflow.
+
+### Docker CPU Setup
+
+If you prefer to run Terravision in a container with CPU, follow these steps:
+
+1. **Docker files**
+
+   * **Dockerfile**: `src/main/docker/terravision_cpu.dockerfile`
+   * **Compose**:   `src/main/docker/docker-compose.run.yml`
+
+2. **Build & run**
+   From the project root, execute:
+
+   ```bash
+   docker compose -f src/main/docker/docker-compose.run.yml up --build
+   ```
+
+   This will:
+
+   * Build the CPU-enabled image using `terravision_cpu.dockerfile`.
+   * Launch a container that runs:
+
+     ```json
+     CMD ["streamlit", "run", "src/main/python/main_streamlit_v2.py"]
+     ```
+   * Automatically expose the Streamlit web UI on port **8501**.
+
+3. **Select the CPU pipeline**
+   In the Streamlit UI, choose the **satellite\_example\_docker\_cpu** pipeline to run the example satellite workflow.
+
+### Pushing Docker Image to GitHub Packages
+
+To push the Docker image to GitHub Packages, follow these steps:
+
+1.  **Build the Docker image**:
+    ```bash
+    docker build -t ghcr.io/cmaranes-ita/terravision-cpu:latest -f src/main/docker/terravision_cpu.dockerfile .
+    ```
+    For a clean build, use `--no-cache`:
+    ```bash
+    docker build --no-cache -t ghcr.io/cmaranes-ita/terravision-cpu:latest -f src/main/docker/terravision_cpu.dockerfile .
+    ```
+
+2.  **Push the Docker image**:
+    ```bash
+    docker push ghcr.io/cmaranes-ita/terravision-cpu:latest
+    ```
+
+3.  **Run with Docker Compose**:
+    ```bash
+    docker compose -f src/main/docker/docker-compose.run.yml up
+    ```
+    To force a recreation of the containers:
+    ```bash
+    docker compose -f src/main/docker/docker-compose.run.yml up --force-recreate
+    ```
 
 ---
 

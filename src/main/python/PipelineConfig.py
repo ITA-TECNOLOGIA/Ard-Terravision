@@ -42,10 +42,22 @@ class PipelineConfig:
         "ObjectDetectionDetrex":       "L3.ObjectDetection.ObjectDetectionDetrex",
         "ObjectDetectionGroundedSAM2": "L3.ObjectDetection.ObjectDetectionGroundedSAM2",
         "ChangeDetection":       "L3.ChangeDetection.ChangeDetection",
+        "ChangeDetectionMineNetCD":             "L3.ChangeDetection.ChangeDetectionMineNetCD",
         "LulcClassification":    "L3.LulcClassification.LulcClassification",
         "SemanticCaptioning":    "L3.SemanticCaptioning.SemanticCaptioning",
+        "AMWI":                  "L3.SpectralIndices.AMWI",
+        "BSI":                  "L3.SpectralIndices.BSI",
+        "EVI":                  "L3.SpectralIndices.EVI",
+        "NDCI":                  "L3.SpectralIndices.NDCI",
+        "NDDI":                  "L3.SpectralIndices.NDDI",
+        "NDTI":                  "L3.SpectralIndices.NDTI",
+        "NDVI":                  "L3.SpectralIndices.NDVI",
+        "NDWI":                  "L3.SpectralIndices.NDWI",
+        "EnvIndicator":          "L3.SpectralIndices.EnvIndicator",
         "InformationFusionGenerativeVLM": "L4.InformationFusionGenerativeVLM.InformationFusionGenerativeVLM",
         "LLaVACustom": "L4.LLaVACustom.LLaVACustom",
+        "DummyLLaVACustom": "L4.LLaVACustom.DummyLLaVACustom",
+        "QwenCustom": "L4.QwenCustom.QwenCustom",
     }
     _class_cache: ClassVar[Dict[str, Type[Any]]] = {}
 
