@@ -91,9 +91,13 @@ Key highlights:
 
    For a recursive installation, clone via: 
    ```bash
-   git clone --recurse-submodules <repo>
+   git clone --recurse-submodules https://github.com/ITA-TECNOLOGIA/Ard-Terravision.git
    ```
+   If you already cloned without submodules:
 
+   ```bash
+   git submodule update --init --recursive
+   ```
 
 1. **Create a Python environment (recommended conda)**:
 
@@ -144,8 +148,6 @@ Key highlights:
 6. **Install Detrex for L3 Object Detection**:
 
    ```bash
-   git submodule update --init --recursive
-   
    # Install Detectron2
    cd src/main/python/L3/ObjectDetection/detrex/
    pip install -e detectron2 --no-build-isolation
