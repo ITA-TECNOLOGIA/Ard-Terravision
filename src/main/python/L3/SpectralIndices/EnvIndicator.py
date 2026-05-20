@@ -1,9 +1,9 @@
 # --------------------------------------------------------------------------------
-# ARD - TERRAVISION 
+# ARD - TERRAVISION
 # Version: 1.0
 # Copyright (c) 2025 Instituto Tecnologico de Aragon (www.ita.es) (Spain)
 # Date: May 2025
-# All rights reserved 
+# All rights reserved
 # --------------------------------------------------------------------------------
 
 import numpy as np
@@ -13,6 +13,7 @@ import matplotlib.cm as cm
 import matplotlib.colors as colors
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from typing import List, Optional
 
 from L3.L3_Algorithm import L3_Algorithm, L3_result
 from L3.SpectralIndices.AMWI import AMWI
@@ -93,27 +94,33 @@ class EnvIndicator(L3_Algorithm):
         return env_datacube, evr
 
 
-    def process_data(self, input):
+    def process_data(self, input, l2_datacube: Optional[xr.Dataset] = None) -> List[L3_result]:
         print(f"Processing Environmental Indicator for time index {self.time_indices}")
-        if not self.time_indices: # Empty list
-            logger.info("No time indices provided. Using all time indices from input.")
-            self.time_indices = np.arange(input.datacube.sizes['t']) # Use all time indices from input.
+        data_source = l2_datacube if l2_datacube is not None else input
 
-        # Compute all the spectral indices
+        if not self.time_indices:
+            logger.info("No time indices provided. Using all time indices from input.")
+            self.time_indices = np.arange(data_source.datacube.sizes['t'])
+
         spec_list = []
         for spectral_index in self.spectral_indices:
-            spec = spectral_index(time_indices=self.time_indices).process_data(input)
+            spec = spectral_index(time_indices=self.time_indices).process_data(data_source)
             spec_list.append(spec[0].algorithm_results)
 
         env_datacube, evr = self._pixelwise_pca(spec_list)
 
-        env_indicator_debug = env_datacube.isel(t=53).values
-        # Configure the color palette
+        env_indicator_debug = env_datacube.isel(t=0).values
         norm = colors.Normalize(vmin=0, vmax=1)
         rgba = cm.get_cmap("RdYlGn")(norm(env_indicator_debug))
         rgb = (rgba[:, :, :3] * 255).astype(np.uint8)
         env_indicator_debug_img = Image.fromarray(rgb, mode="RGB")
-        result = [L3_result(debug_image=env_indicator_debug_img, algorithm_results=env_datacube)]
+
+        result = [L3_result(
+            debug_image=env_indicator_debug_img,
+            algorithm_results=env_datacube,
+            time_indices=list(self.time_indices),
+            result_type="datacube"
+        )]
 
         env_datacube.to_netcdf("env_datacube.nc")
 

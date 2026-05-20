@@ -23,8 +23,20 @@
     ],
     "l4_algorithm": {
       "type": "LLaVACustom",
-      "params": [
+      "params": {
+        "args_list": [
           {"airborne_tile": "v1-0-1"}
-      ]
+        ],
+        "target_time_index": null,
+        "model_path": null,
+        "model_base": "liuhaotian/llava-v1.5-7b",
+        "conv_mode": null,
+        "temperature": 0.2,
+        "max_new_tokens": 512,
+        "load_8bit": false,
+        "load_4bit": false,
+        "debug": false,
+        "prompt": "Describe the content of the image."
+      }
     }
   } 

@@ -6,17 +6,28 @@
       }
     },
     "l2_algorithms": [
-     
+   
     ],
     "l3_algorithms": [
     ],
     "l4_algorithm": {
       "type": "QwenCustom",
-      "params": [
-        {
-          "time_index": 0
-        }
-      ]
+      "params": {
+        "args_list": [
+          {
+            "time_index": 0
+          }
+        ],
+        "target_time_index": 0,
+        "base_model": "Qwen/Qwen2.5-VL-7B-Instruct",
+        "lora_checkpoint": null,
+        "torch_dtype": "float16",
+        "device_map": "auto",
+        "temperature": 0.2,
+        "max_new_tokens": 512,
+        "debug": false,
+        "prompt": "Describe the content of the image.",
+        "system_prompt": "You are a helpful assistant that analyzes satellite images."
+      }
     }
   }
-  

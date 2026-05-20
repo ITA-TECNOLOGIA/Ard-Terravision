@@ -12,10 +12,10 @@ from dotenv import load_dotenv
 # ─── Load .env and get default DEVICE ─────────────────────────────────────────
 load_dotenv()
 
-import argparse
 import numpy as np
 from PIL import Image
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Optional
+import cv2
 
 import torch
 from transformers import AutoProcessor
@@ -26,6 +26,7 @@ from transformers import Qwen2_5_VLForConditionalGeneration
 
 # Framework base
 from L4.L4_Algorithm import L4_Algorithm
+from L3.L3_Algorithm import L3_result
 
 def process_vision_info(example):
     """
@@ -203,67 +204,146 @@ class QwenVLChat:
 
 # ──────────────────────── L4 wrapper (module-exchangeable) ────────────────────
 class QwenCustom(L4_Algorithm):
-    def __init__(self, args_list: List[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        args_list: List[Dict[str, Any]] = None,
+        target_time_index: Optional[int] = None,
+        base_model: str = "Qwen/Qwen2.5-VL-7B-Instruct",
+        lora_checkpoint: str = None,
+        torch_dtype: str = "float16",
+        device_map: str = "auto",
+        temperature: float = 0.2,
+        max_new_tokens: int = 512,
+        debug: bool = False,
+        prompt: str = "Describe the content of the image.",
+        system_prompt: str = "You are a helpful assistant that analyzes satellite images.",
+    ):
         super().__init__()
-        CHECKPOINT = os.getenv("QWEN_CHECKPOINT_DIR")
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--base-model", type=str, default="Qwen/Qwen2.5-VL-7B-Instruct")
-        parser.add_argument("--lora-checkpoint", type=str, default=CHECKPOINT)  # empty = none
-        parser.add_argument("--torch-dtype", type=str, default="float16", choices=["float16", "bfloat16", "float32"])
-        parser.add_argument("--device-map", type=str, default="auto")
-        parser.add_argument("--temperature", type=float, default=0.2)
-        parser.add_argument("--max-new-tokens", type=int, default=512)
-        parser.add_argument("--debug", action="store_true")
-        parser.add_argument(
-            "--prompt",
-            type=str,
-            default="Describe the content of the image.",
-            help="Default prompt for each frame",
-        )
-        parser.add_argument(
-            "--system-prompt",
-            type=str,
-            default="You are a helpful assistant that analyzes satellite images.",
-        )
-        args = parser.parse_args()
 
         DEVICE = os.getenv("DEVICE", "cpu")
+        lora_checkpoint = lora_checkpoint or os.getenv("QWEN_CHECKPOINT_DIR")
 
         self.bot = QwenVLChat(
-            base_model=args.base_model,
+            base_model=base_model,
             device=DEVICE,
-            lora_checkpoint=(args.lora_checkpoint or None),
-            torch_dtype=args.torch_dtype,
-            system_prompt=args.system_prompt,
-            device_map=args.device_map,
+            lora_checkpoint=lora_checkpoint,
+            torch_dtype=torch_dtype,
+            system_prompt=system_prompt,
+            device_map=device_map,
         )
 
-        self.prompt         = args.prompt
-        self.temperature    = args.temperature
-        self.max_new_tokens = args.max_new_tokens
-        self.debug          = args.debug
-        self.args_list      = args_list or []
+        self.prompt = prompt
+        self.temperature = temperature
+        self.max_new_tokens = max_new_tokens
+        self.debug = debug
+        self.args_list = args_list or []
+        self.target_time_index = target_time_index
 
-    def process_data(self, input) -> List[str]:
+    def _overlay_result_on_image(self, rgb_image: np.ndarray, l3_result: Any, time_index: int) -> np.ndarray:
+        """Overlay L3 algorithm results (mask, detections, etc.) onto RGB image."""
+        result_type = l3_result.result_type
+        algo_results = l3_result.algorithm_results
+
+        overlay = rgb_image.copy()
+
+        if result_type == "mask" and algo_results is not None:
+            mask = algo_results.get("mask")
+            if mask is not None:
+                mask_normalized = (mask / mask.max() * 255).astype(np.uint8) if mask.max() > 0 else mask.astype(np.uint8)
+                cmap = cv2.applyColorMap(mask_normalized, cv2.COLORMAP_JET)
+                overlay = cv2.addWeighted(overlay, 0.7, cmap, 0.3, 0)
+
+        elif result_type == "detections" and algo_results is not None:
+            detections = algo_results.get("detections", [])
+            for det in detections:
+                bbox = det.bbox
+                confidence = det.confidence
+                x1, y1, x2, y2 = map(int, bbox)
+                cv2.rectangle(overlay, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                label = f"{confidence:.2f}"
+                cv2.putText(overlay, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        elif result_type == "change_map" and algo_results is not None:
+            change_map = algo_results.get("change_map")
+            if change_map is not None:
+                change_normalized = (change_map / change_map.max() * 255).astype(np.uint8) if change_map.max() > 0 else change_map.astype(np.uint8)
+                cmap = cv2.applyColorMap(change_normalized, cv2.COLORMAP_RED)
+                overlay = cv2.addWeighted(overlay, 0.7, cmap, 0.3, 0)
+
+        return overlay
+
+    def _format_l3_context(self, l3_results: List[Any], time_index: int) -> str:
+        """Format L3 results as text context for the VLM prompt."""
+        context_parts = []
+        for result in l3_results:
+            result_type = result.result_type
+            algo_results = result.algorithm_results
+
+            if result_type == "mask" and algo_results is not None:
+                mask = algo_results.get("mask")
+                if mask is not None:
+                    unique_classes = np.unique(mask)
+                    context_parts.append(f"Land use classification detected {len(unique_classes)} classes: {list(unique_classes)}")
+
+            elif result_type == "detections" and algo_results is not None:
+                if hasattr(algo_results, 'detections'):
+                    detections = algo_results.detections
+                else:
+                    detections = algo_results.get("detections", [])
+                if detections:
+                    context_parts.append(f"Object detection found {len(detections)} objects")
+
+            elif result_type == "change_map" and algo_results is not None:
+                change_map = algo_results.get("change_map")
+                if change_map is not None:
+                    change_pixels = np.sum(change_map > 0)
+                    context_parts.append(f"Change detection identified {change_pixels} changed pixels")
+
+            elif result_type == "datacube" and algo_results is not None:
+                context_parts.append("Environmental indicator datacube available for analysis")
+
+        return "; ".join(context_parts) if context_parts else "No analysis results available"
+
+    def process_data(self, input, l3_results: List[Any] = None, target_time_index: Optional[int] = None) -> List[str]:
         """
         Iterates frames via `input.get_rgb_image(**kwargs)` and queries Qwen.
         Each element of args_list may include a custom 'prompt'.
         """
         results: List[str] = []
         getter = input.get_rgb_image
+        time_idx = target_time_index if target_time_index is not None else self.target_time_index
 
-        for frame_kwargs in self.args_list:
-            print(f"[QwenVLCustom] Processing frame with args: {frame_kwargs}")
-            frame = getter(**frame_kwargs)  # np.ndarray HWC
-            self.bot.prepare_image(frame)
+        if l3_results and time_idx is not None:
+            rgb_image = getter(time_idx)
+            relevant_results = [
+                l3_result for l3_result in l3_results
+                if time_idx in l3_result.time_indices or not l3_result.time_indices
+            ]
+            if relevant_results:
+                context = self._format_l3_context(relevant_results, time_idx)
+                prompt = f"{context}. {self.prompt}"
+                self.bot.prepare_image(rgb_image)
 
-            used_prompt = frame_kwargs.get("prompt", self.prompt)
-            reply = self.bot.ask(
-                text=used_prompt,
-                temperature=self.temperature,
-                max_new_tokens=self.max_new_tokens,
-                debug=self.debug,
-            )
-            results.append(reply)
+                reply = self.bot.ask(
+                    text=prompt,
+                    temperature=self.temperature,
+                    max_new_tokens=self.max_new_tokens,
+                    debug=self.debug,
+                )
+                results.append(reply)
+        else:
+            for frame_kwargs in self.args_list:
+                print(f"[QwenVLCustom] Processing frame with args: {frame_kwargs}")
+                frame = getter(**frame_kwargs)
+                self.bot.prepare_image(frame)
+
+                used_prompt = frame_kwargs.get("prompt", self.prompt)
+                reply = self.bot.ask(
+                    text=used_prompt,
+                    temperature=self.temperature,
+                    max_new_tokens=self.max_new_tokens,
+                    debug=self.debug,
+                )
+                results.append(reply)
 
         return results

@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import numpy as np
 import torch
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pathlib import Path
 import xarray as xr
 from dotenv import load_dotenv
@@ -27,7 +27,9 @@ from L3.LulcClassification.lulc_core import (
 
 load_dotenv()
 
-def get_multiband_frame_from_input(input_obj, time_index: int, band_names: list[str]) -> np.ndarray:
+DEVICE = os.getenv("DEVICE", "cuda:0")
+
+def get_multiband_frame_from_input(input_obj, time_index: int, band_names: list[str], fallback_input=None) -> np.ndarray:
     """
     Uses the same style as ObjectDetectionDetrex:
       - input.get_image(time_index, band_name) for each band
@@ -36,6 +38,18 @@ def get_multiband_frame_from_input(input_obj, time_index: int, band_names: list[
       - input.get_multiband(time_index, band_names)
     Returns (B,H,W) float32.
     """
+    # If input_obj is an xarray Dataset (from L2), try direct access
+    if isinstance(input_obj, xr.Dataset):
+        try:
+            arrays = [input_obj[b].sel(t=time_index).values for b in band_names]
+            return np.stack(arrays, axis=0).astype(np.float32)
+        except KeyError:
+            # Fall back to original input if time_index not found in L2 datacube
+            if fallback_input is not None:
+                input_obj = fallback_input
+            else:
+                raise
+
     # If L1 supports a direct multiband call
     if hasattr(input_obj, "get_multiband") and callable(getattr(input_obj, "get_multiband")):
         arr = np.asarray(input_obj.get_multiband(time_index, band_names))
@@ -103,7 +117,7 @@ class LulcClassification(L3_Algorithm):
         self.var_name = var_name
         self.compress = compress
 
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(DEVICE if torch.cuda.is_available() else "cpu")
         self.model, _ = build_model(self.net, device=self.device)
         self.model = load_checkpoint(self.model, model_path, self.device)
 
@@ -180,20 +194,23 @@ class LulcClassification(L3_Algorithm):
 
         return str(out_path)
 
-    def process_data(self, input) -> List[L3_result]:
+    def process_data(self, input, l2_datacube: Optional[xr.Dataset] = None) -> List[L3_result]:
         out: List[L3_result] = []
         masks_for_cube = []
         time_indices_done = []
+
+        data_source = l2_datacube if l2_datacube is not None else input
+
         for time_index in self.time_indices:
             print(f"Processing LULC classification for time index {time_index} and bands {self.band_names}")
 
-            img_3d = get_multiband_frame_from_input(input, time_index, self.band_names)  # (B,H,W)
+            img_3d = get_multiband_frame_from_input(data_source, time_index, self.band_names, fallback_input=input)  # (B,H,W)
             mask = infer_multiband_frame(self.model, self.device, img_3d)               # (H,W)
 
             masks_for_cube.append(mask)
             time_indices_done.append(time_index)
-            
-            
+
+
             debug_img = None
             if self.return_debug_image:
                 rgb_vis = np.stack([img_3d[2], img_3d[1], img_3d[0]], axis=-1) / 10000.0
@@ -207,12 +224,13 @@ class LulcClassification(L3_Algorithm):
                         "band_names": self.band_names,
                         "mask": mask,
                     },
+                    time_indices=[time_index],
+                    result_type="mask",
                 )
             )
         if self.write_mask_netcdf:
             masks_3d = np.stack(masks_for_cube, axis=0).astype(np.uint8)  # (T,H,W)
             saved_path = self._write_mask_cube(input, masks_3d, time_indices_done)
-            # optional: attach path to each result for UI/logging
             for r in out:
                 r.algorithm_results["mask_cube_path"] = saved_path
         return out

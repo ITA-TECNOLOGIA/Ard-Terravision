@@ -7,15 +7,16 @@
 # --------------------------------------------------------------------------------
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict, Any
 from PIL import Image
 import numpy as np
 import cv2
 import pytorch_lightning as pl
 from dotenv import load_dotenv
 import os
+import xarray as xr
 
-from L2.L2_Algorithm import L2_Algorithm, L2_result
+from L2.L2_Algorithm import L2_Algorithm, L2_output
 from L2.CloudMasking.satellite_cloud_removal_dip.src import LitDIP
 load_dotenv()
 
@@ -68,7 +69,7 @@ class CloudMasking(L2_Algorithm):
 
                 clean_percentage = np.mean(mask)
                 
-                print(f"[CloudMasking] Evaluando index {t}: {clean_percentage*100:.2f}% limpio (blanco)")
+                print(f"[CloudMasking] Evaluating index {t}: {clean_percentage*100:.2f}% clean (white)")
 
                 if clean_percentage > max_clean_score:
                     max_clean_score = clean_percentage
@@ -80,15 +81,18 @@ class CloudMasking(L2_Algorithm):
                 break
 
         if best_idx is None:
-            raise ValueError("No se encontró ninguna imagen válida.")
+            raise ValueError("No valid image found.")
 
-        print(f"[CloudMasking] SELECCIONADO index {best_idx} como GT ({max_clean_score*100:.2f}% superficie limpia)")
+        print(f"[CloudMasking] SELECTED index {best_idx} as GT ({max_clean_score*100:.2f}% clean surface)")
         return best_idx
 
-    def process_data(self, input) -> List[L2_result]:
-        results: List[L2_result] = []
+    def process_data(self, input) -> L2_output:
+        processed_bands: Dict[str, np.ndarray] = {}
+        processed_band_names: List[str] = []
+        debug_images: List[Image.Image] = []
 
-        # Auto-select ground truth if not provided
+        original_datacube = input.get_datacube()
+
         if self.gt_time_index is None:
             self.gt_time_index = self._find_best_gt_time_index(
                 input,
@@ -96,14 +100,12 @@ class CloudMasking(L2_Algorithm):
             )
 
         for time_index in self.time_indices:
-            print("Only processing rgb bands") # TODO The algorithm should work with any band
+            print("Only processing rgb bands")
             for rgb_band_name in self.rgb_band_names:
-                # Get the cloud mask and convert from boolean to uint8 if needed.
                 cloud_mask = input.get_cloud_mask(time_index).squeeze(0)
                 if cloud_mask.dtype == np.bool_:
                     cloud_mask = cloud_mask.astype(np.uint8)
 
-                # Retrieve and transpose ground truth and input image.
                 ground_truth = input.get_ground_truth(self.gt_time_index, rgb_band_name)
                 ground_truth = np.nan_to_num(ground_truth)
                 ground_truth = np.transpose(ground_truth, (1, 2, 0))
@@ -111,25 +113,20 @@ class CloudMasking(L2_Algorithm):
                 image_with_clouds = np.nan_to_num(image_with_clouds)
                 image_with_clouds = np.transpose(image_with_clouds, (1, 2, 0))
 
-                # Save the original size for later resizing.
                 original_size = image_with_clouds.shape[:2]
 
-                # Resize the image, ground truth, and cloud mask to 256x256.
                 image_with_clouds_resized = cv2.resize(image_with_clouds, (256, 256)).astype(np.float32)
                 ground_truth_resized      = cv2.resize(ground_truth,      (256, 256)).astype(np.float32)
                 cloud_mask_resized        = cv2.resize(cloud_mask,      (256, 256), interpolation=cv2.INTER_NEAREST)
 
-                # Normalize by per-image max (add eps to avoid div-by-zero)
                 eps    = 1e-6
                 max_ic = image_with_clouds_resized.max()
                 max_gt = ground_truth_resized.max()
                 image_with_clouds_resized = image_with_clouds_resized / (max_ic + eps)
                 ground_truth_resized      = ground_truth_resized      / (max_gt + eps)
 
-                # Create a ones mask for the LitDIP model
                 ones_mask_resized = np.ones(cloud_mask_resized.shape, dtype=np.uint8)
 
-                # Setup and run the model
                 model = LitDIP()
                 model.set_target([image_with_clouds_resized, ground_truth_resized])
                 model.set_mask([cloud_mask_resized, ones_mask_resized])
@@ -141,14 +138,11 @@ class CloudMasking(L2_Algorithm):
                 trainer.fit(model)
                 result, _ = model.output()
 
-                # Resize the model output back to the original input size.
                 result_resized = cv2.resize(result, (original_size[1], original_size[0]))
 
-                # ---- DEBUG: create composite image ----
                 mask_vis = (cloud_mask_resized * 255).astype(np.uint8)
                 mask_vis = cv2.cvtColor(mask_vis, cv2.COLOR_GRAY2BGR).astype(np.float32) / 255.0
 
-                # Composite: top row [input | ground truth], bottom row [mask | result]
                 result_norm = result / (result.max() + eps)
                 result_resized_norm = cv2.resize(result_norm, (256, 256)).astype(np.float32)
 
@@ -156,30 +150,40 @@ class CloudMasking(L2_Algorithm):
                 bottom_row = np.hstack([mask_vis, result_resized_norm])
                 composite = np.vstack([top_row, bottom_row])
 
-                # Convert numpy composite to PIL Image
                 debug_img = Image.fromarray((composite * 255).astype(np.uint8))
-                # ---------------------------------------
+                debug_images.append(debug_img)
 
-                # Build CloudMaskingResult
-                cm_result = CloudMaskingResult(
-                    image_with_clouds_resized=image_with_clouds_resized,
-                    ground_truth_resized=ground_truth_resized,
-                    cloud_mask_resized=cloud_mask_resized,
-                    inpainted_result=result,
-                    inpainted_result_resized=result_resized
+                for i, band in enumerate(rgb_band_name):
+                    processed_bands[f"{band}_cm"] = result_resized[:, :, i]
+                    processed_band_names.append(f"{band}_cm")
+
+        combined_debug = Image.new('RGB', (debug_images[0].width * len(debug_images), debug_images[0].height))
+        for i, img in enumerate(debug_images):
+            combined_debug.paste(img, (i * img.width, 0))
+
+        new_datacube = original_datacube.copy(deep=False)
+        for band_name, band_data in processed_bands.items():
+            data_arrays = []
+            for t_idx in self.time_indices:
+                da = xr.DataArray(
+                    band_data[np.newaxis, :, :],
+                    dims=["t", "y", "x"],
+                    coords={"t": [t_idx]}
                 )
+                data_arrays.append(da)
+            if data_arrays:
+                combined = xr.concat(data_arrays, dim="t")
+                new_datacube[band_name] = combined
 
-                # Append L2_result
-                results.append(L2_result(
-                    debug_image=debug_img,
-                    algorithm_results=cm_result
-                ))
+        processed_band_info: Dict[str, Any] = {
+            "algorithm": "CloudMasking",
+            "processed_band_names": processed_band_names,
+            "time_indices": self.time_indices,
+            "gt_time_index": self.gt_time_index,
+        }
 
-                # Update the input with the inpainted image
-                input.update_datacube(
-                    time_index,
-                    rgb_band_name,
-                    result_resized
-                )
-
-        return results
+        return L2_output(
+            datacube=new_datacube,
+            debug_image=combined_debug,
+            processed_band_info=processed_band_info
+        )

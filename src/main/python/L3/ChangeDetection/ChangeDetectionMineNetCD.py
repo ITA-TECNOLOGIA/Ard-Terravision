@@ -2,12 +2,13 @@ import torch
 from PIL import Image
 import torchvision.transforms as tfs
 import numpy as np
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 import os
 from dotenv import load_dotenv
+import xarray as xr
 
 # Assuming L3 imports are correct
-from L3.L3_Algorithm import L3_Algorithm, L3_result 
+from L3.L3_Algorithm import L3_Algorithm, L3_result
 from L3.ChangeDetection.MineNetCD.upernet import UperNetForSemanticSegmentation
 
 load_dotenv()
@@ -96,9 +97,10 @@ class ChangeDetectionMineNetCD(L3_Algorithm):
         self.model = self.model.to(self.device)
         self.model.eval()
 
-    def process_data(self, input) -> List[L3_result]:
+    def process_data(self, input, l2_datacube: Optional[xr.Dataset] = None) -> List[L3_result]:
         results: List[L3_result] = []
-        getter = input.get_rgb_image
+        data_source = l2_datacube if l2_datacube is not None else input
+        getter = data_source.get_rgb_image if hasattr(data_source, 'get_rgb_image') else input.get_rgb_image
 
         for kwargs in self.args_list:
             time_index_A = kwargs.get("time_index_A")
@@ -165,7 +167,11 @@ class ChangeDetectionMineNetCD(L3_Algorithm):
             debug_image.paste(imageB_original, (w, 0))
             debug_image.paste(pred_map_pil.convert("RGB"), (w * 2, 0))
 
-            results.append(L3_result(debug_image=debug_image,
-                                     algorithm_results=pred_map_np))
+            results.append(L3_result(
+                debug_image=debug_image,
+                algorithm_results={"change_map": pred_map_np, "time_index_A": time_index_A, "time_index_B": time_index_B},
+                time_indices=[time_index_A, time_index_B],
+                result_type="change_map"
+            ))
 
         return results

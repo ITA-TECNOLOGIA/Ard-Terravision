@@ -30,10 +30,22 @@
     ],
     "l4_algorithm": {
       "type": "LLaVACustom",
-      "params": [
-        {
-          "time_index": 4
-        }
-      ]
+      "params": {
+        "args_list": [
+          {
+            "time_index": 4
+          }
+        ],
+        "target_time_index": 4,
+        "model_path": null,
+        "model_base": "liuhaotian/llava-v1.5-7b",
+        "conv_mode": null,
+        "temperature": 0.2,
+        "max_new_tokens": 512,
+        "load_8bit": false,
+        "load_4bit": false,
+        "debug": false,
+        "prompt": "Describe the content of the image."
+      }
     }
   }

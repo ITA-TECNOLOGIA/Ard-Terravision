@@ -1,19 +1,27 @@
 # --------------------------------------------------------------------------------
-# ARD - TERRAVISION 
+# ARD - TERRAVISION
 # Version: 1.0
 # Copyright (c) 2025 Instituto Tecnologico de Aragon (www.ita.es) (Spain)
 # Date: May 2025
-# All rights reserved 
+# All rights reserved
 # --------------------------------------------------------------------------------
 
-from L3.L3_Algorithm import L3_Algorithm
+from L3.L3_Algorithm import L3_Algorithm, L3_result
 # Detrex imports
 from L3.ObjectDetection.detrex.demo.demo import setup, instantiate, DetectionCheckpointer, VisualizationDemo
 import argparse
 import numpy as np
 import json
 import os
-import sys 
+import sys
+from typing import List, Optional
+import xarray as xr
+from PIL import Image
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DEVICE = os.getenv("DEVICE", "cuda:0")
 
 detrex_root = os.path.abspath(
     "src/main/python/L3/ObjectDetection/detrex"
@@ -49,7 +57,11 @@ class ObjectDetectionDetrex(L3_Algorithm):
         super().__init__()
 
         config_file = "src/main/python/L3/ObjectDetection/detrex/projects/deta/configs/deta_swin_large_finetune_24ep.py"
-        opts = ['train.init_checkpoint=./checkpoints/ObjectDetection/converted_deta_swin_o365_finetune.pth']
+        opts = [
+            'train.init_checkpoint=./checkpoints/ObjectDetection/converted_deta_swin_o365_finetune.pth',
+            f'train.device={DEVICE}',
+            f'model.device={DEVICE}',
+        ]
         confidence_threshold = 0.5
 
         self.time_indices = time_indices
@@ -88,18 +100,25 @@ class ObjectDetectionDetrex(L3_Algorithm):
         self.model = model
         self.confidence_threshold = confidence_threshold
 
-    def process_data(self, input):
-        frame_results = []
+    def process_data(self, input, l2_datacube: Optional[xr.Dataset] = None) -> List[L3_result]:
+        results: List[L3_result] = []
+        data_source = l2_datacube if l2_datacube is not None else input
 
         for time_index in self.time_indices:
             for band_name in self.rgb_band_names:
                 print(f"Processing object detection for time index {time_index} and band {band_name}")
 
-                frame = input.get_image(time_index, band_name)
+                if hasattr(data_source, 'get_image'):
+                    frame = data_source.get_image(time_index, band_name)
+                else:
+                    try:
+                        arrays = [data_source[b].sel(t=time_index).values for b in band_name]
+                        frame = np.stack(arrays, axis=0)
+                    except KeyError:
+                        frame = input.get_image(time_index, band_name)
                 frame = frame.transpose(1, 2, 0).copy()
                 frame = np.nan_to_num(frame, nan=0)
 
-                # OPTIONAL normalization (recommended)
                 if frame.max() > 0:
                     frame = frame / frame.max()
                 frame = (frame * 255).astype(np.uint8)
@@ -130,14 +149,21 @@ class ObjectDetectionDetrex(L3_Algorithm):
                     )
                     detections.append(detection)
 
-                frame_results.append(
-                    FrameResult(
-                        detections=detections,
-                        kwargs={
-                            "time_index": time_index,
-                            "band_name": band_name
-                        }
-                    )
+                frame_result = FrameResult(
+                    detections=detections,
+                    kwargs={
+                        "time_index": time_index,
+                        "band_name": band_name
+                    }
                 )
 
-        return DetrexOutput(frame_results)
+                debug_img = Image.fromarray(frame) if frame is not None else None
+
+                results.append(L3_result(
+                    debug_image=debug_img,
+                    algorithm_results=frame_result,
+                    time_indices=[time_index],
+                    result_type="detections"
+                ))
+
+        return results

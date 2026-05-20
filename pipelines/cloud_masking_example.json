@@ -9,16 +9,11 @@
       {
         "type": "CloudMasking",
         "params": {
-          "time_indices": [17],
+          "time_indices": [12],
           "rgb_band_names": [["B04", "B03", "B02"]]
         }
       }
     ],
-    "l3_algorithms": [
-    ],
-    "l4_algorithm": {
-      "type": "InformationFusionGenerativeVLM",
-      "params": {}
-    }
+    "l3_algorithms": [],
+    "l4_algorithm": null
   }
-  

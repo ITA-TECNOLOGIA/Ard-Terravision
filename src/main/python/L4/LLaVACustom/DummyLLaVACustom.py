@@ -1,13 +1,13 @@
 # --------------------------------------------------------------------------------
-# ARD - TERRAVISION 
+# ARD - TERRAVISION
 # Version: 1.0
 # Copyright (c) 2025 Instituto Tecnologico de Aragon (www.ita.es) (Spain)
 # Date: May 2025
-# All rights reserved 
+# All rights reserved
 # --------------------------------------------------------------------------------
 
 import numpy as np
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 class DummyImageGetter:
     def get_rgb_image(self, **kwargs) -> np.ndarray:
@@ -29,32 +29,52 @@ class DummyLlavaChat:
 
 
 class DummyLLaVACustom:
-    def __init__(self, args_list: List[Dict[str, Any]] = None):
+    def __init__(self, args_list: List[Dict[str, Any]] = None, target_time_index: Optional[int] = None):
         self.prompt = "Describe the content of the image."
         self.temperature = 0.2
         self.max_new_tokens = 512
         self.debug = True
         self.args_list = args_list or [{"dummy_key": "dummy_value"}]
+        self.target_time_index = target_time_index
         self.bot = DummyLlavaChat()
         self.input = DummyImageGetter()
 
-    def process_data(self, input=None) -> List[str]:
+    def process_data(self, input=None, l3_results: List[Any] = None, target_time_index: Optional[int] = None) -> List[str]:
         input = input or self.input
-        results = []
-        for frame_kwargs in self.args_list:
-            print(f"[DummyLLaVACustom] Processing frame with args: {frame_kwargs}")
-            frame = input.get_rgb_image(**frame_kwargs)
-            self.bot.prepare_image(frame)
+        time_idx = target_time_index if target_time_index is not None else self.target_time_index
 
-            prompt = frame_kwargs.get("prompt", self.prompt)
-            response = self.bot.ask(
-                text=prompt,
-                temperature=self.temperature,
-                max_new_tokens=self.max_new_tokens,
-                debug=self.debug,
-            )
-            results.append(response)
-        return results
+        if l3_results and time_idx is not None:
+            print(f"[DummyLLaVACustom] Processing with L3 results at time_index={time_idx}")
+            results = []
+            for l3_result in l3_results:
+                frame = input.get_rgb_image(time_index=time_idx)
+                self.bot.prepare_image(frame)
+
+                prompt = f"L3 result context: {l3_result.result_type}. {self.prompt}"
+                response = self.bot.ask(
+                    text=prompt,
+                    temperature=self.temperature,
+                    max_new_tokens=self.max_new_tokens,
+                    debug=self.debug,
+                )
+                results.append(response)
+            return results
+        else:
+            results = []
+            for frame_kwargs in self.args_list:
+                print(f"[DummyLLaVACustom] Processing frame with args: {frame_kwargs}")
+                frame = input.get_rgb_image(**frame_kwargs)
+                self.bot.prepare_image(frame)
+
+                prompt = frame_kwargs.get("prompt", self.prompt)
+                response = self.bot.ask(
+                    text=prompt,
+                    temperature=self.temperature,
+                    max_new_tokens=self.max_new_tokens,
+                    debug=self.debug,
+                )
+                results.append(response)
+            return results
 
 
 # Example usage:

@@ -14,10 +14,11 @@ load_dotenv()
 import numpy as np
 import torch
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from PIL import Image
 import cv2
 import supervision as sv
+import xarray as xr
 
 from L3.L3_Algorithm import L3_Algorithm, L3_result
 from sam2.build_sam import build_sam2
@@ -112,9 +113,10 @@ class ObjectDetectionGroundedSAM2(L3_Algorithm):
         sam2_model = build_sam2(SAM2_CONFIG, SAM2_CHECKPOINT, device=self.torch_device)
         self.sam2_predictor = SAM2ImagePredictor(sam2_model)
 
-    def process_data(self, input) -> List[L3_result]:
+    def process_data(self, input, l2_datacube: Optional[xr.Dataset] = None) -> List[L3_result]:
         results: List[L3_result] = []
-        getter = input.get_rgb_image
+        data_source = l2_datacube if l2_datacube is not None else input
+        getter = data_source.get_rgb_image if hasattr(data_source, 'get_rgb_image') else input.get_rgb_image
 
         for kwargs in self.args_list:
             frame = getter(**kwargs)
@@ -187,7 +189,12 @@ class ObjectDetectionGroundedSAM2(L3_Algorithm):
             row.paste(frame_result.annotated_boxes_image, (w, 0))
             row.paste(frame_result.annotated_mask_image, (w*2, 0))
 
-            results.append(L3_result(debug_image=row,
-                                     algorithm_results=[frame_result]))
+            time_index = kwargs.get('time_index', 0)
+            results.append(L3_result(
+                debug_image=row,
+                algorithm_results=frame_result,
+                time_indices=[time_index],
+                result_type="detections"
+            ))
 
         return results
