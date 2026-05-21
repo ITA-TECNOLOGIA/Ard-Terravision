@@ -74,21 +74,18 @@ def download_data(connection, shape_file_path, start_date, end_date, synchronous
         datacube = get_download_workflow(connection, shape, start_str, end_str)
 
         if synchronous:
-            # --- This is the new logic ---
             file_name = f"{file_name_base}_sync.nc"
             output_path = os.path.join(output_dir, file_name)
             logger.info(f'Starting synchronous download to {output_path}')
             
-            # --- [THE FIX] ---
-            # The method is .download(), not .download_file()
+            # Download the datacube
             datacube.download(output_path)
-            # --- [END FIX] ---
 
             logger.info(f"Synchronous download to {output_path} completed.")
             return output_path
         
         else:
-            # --- This is your original batch job logic ---
+            # Handle batch job download
             file_name = f"{file_name_base}_batch.nc"
             output_path = os.path.join(output_dir, file_name)
             
