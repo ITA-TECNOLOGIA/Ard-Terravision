@@ -37,7 +37,7 @@ RUN pip install --upgrade pip setuptools wheel \
  && pip install Cython numpy
 
 # 7. Install a CUDA-enabled PyTorch wheel
-RUN pip install torch torchvision torchaudio
+RUN pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu126
 
 # 8. Install GroundingDINO & Grounded-SAM-2
 RUN pip install --no-build-isolation git+https://github.com/IDEA-Research/GroundingDINO.git \

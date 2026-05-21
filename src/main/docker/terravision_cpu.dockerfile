@@ -25,7 +25,7 @@ ENV C_INCLUDE_PATH=/usr/include/gdal
 RUN pip install --upgrade pip setuptools wheel
 
 # Install CPU-specific torch
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+RUN pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cpu
 
 # Copy requirements and install
 COPY src/main/requirements_cpu.txt .
