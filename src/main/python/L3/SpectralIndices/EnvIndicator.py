@@ -122,6 +122,4 @@ class EnvIndicator(L3_Algorithm):
             result_type="datacube"
         )]
 
-        env_datacube.to_netcdf("env_datacube.nc")
-
         return result

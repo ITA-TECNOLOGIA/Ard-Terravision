@@ -11,7 +11,6 @@ import streamlit as st
 import openeo
 from PipelineConfig import PipelineConfig
 from datetime import datetime
-# [FIXED IMPORT] We only import download_data
 from utils.openeo_downloader import download_data
 from dotenv import load_dotenv
 
@@ -52,54 +51,51 @@ def list_pipelines(folder: str = "pipelines", ext: str = ".json"):
         return sorted(f for f in os.listdir(folder) if f.endswith(ext))
     return []
 
-def normalize_image(img: np.ndarray) -> np.ndarray:
-    arr = img.astype(np.float32)
-    mn, mx = arr.min(), arr.max()
-    return (arr - mn) / (mx - mn) if mx > mn else arr
 
 
-def display_stage(stage_title: str, results: list):
-    st.subheader(stage_title, anchor=False)
-    if not results:
-        st.info("No algorithms found for this stage.")
+
+def display_l3_results(l3_results: list):
+    """Display L3 results from the new pipeline design."""
+    if not l3_results:
+        st.info("No L3 results generated.")
         return
 
-    for alg_name, imgs, raw_items in results:
-        with st.expander(f"🧩 {alg_name}", expanded=True):
-            if imgs:
-                st.markdown("**Visual outputs**")
-                if len(imgs) == 1:
-                    st.image(imgs[0], use_container_width=True, caption="Output 1")
-                else:
-                    cols = st.columns(3)
-                    for idx, im in enumerate(imgs):
-                        cols[idx % 3].image(
-                            im,
-                            use_container_width=True,
-                            caption=f"Output {idx+1}"
-                        )
+    for idx, result in enumerate(l3_results):
+        result_type = getattr(result, 'result_type', 'unknown')
+        time_indices = getattr(result, 'time_indices', [])
+        time_str = f" (t={time_indices})" if time_indices else ""
+
+        with st.expander(f"🧩 L3 Result {idx+1}: {result_type}{time_str}", expanded=True):
+            debug_img = getattr(result, 'debug_image', None)
+            if debug_img:
+                st.markdown("**Visual output**")
+                st.image(debug_img, use_container_width=True, caption=f"L3 Result {idx+1}")
                 st.success("Completed successfully.")
             else:
                 st.warning("No visual output produced.")
 
-            display_algorithm_details(raw_items)
+            alg_results = getattr(result, 'algorithm_results', None)
+            if alg_results is not None:
+                display_algorithm_details([alg_results])
 
 def display_algorithm_details(items):
     """
     Render extra details stored inside out.algorithm_results.
+    Handles both L3_result objects and raw algorithm result objects.
     No nested expanders.
     """
     if not items:
         return
 
-    for out_idx, out in enumerate(items, start=1):
-        alg_results = getattr(out, "algorithm_results", None)
+    for out_idx, item in enumerate(items, start=1):
+        alg_results = getattr(item, "algorithm_results", item)
         if alg_results is None or (
             isinstance(alg_results, (list, tuple)) and len(alg_results) == 0
         ):
             continue
         if not isinstance(alg_results, (list, tuple)):
             alg_results = [alg_results]
+
         for fr_idx, fr in enumerate(alg_results, start=1):
             sam_scores = getattr(fr, "sam_scores", None)
             if sam_scores is None:
@@ -423,51 +419,70 @@ if st.session_state.run_pipeline:
                 log(f"[L1] Failed: {e}")
                 s.update(label="L1 failed", state="error")
 
-    def run_stage(algorithms, stage_name, tab_obj):
-        outputs = []
-        with tab_obj:
-            with st.status(f"{stage_name}", expanded=True) as s:
-                progress = st.progress(0)
-                total = max(1, len(algorithms))
+    
 
-                for i, alg in enumerate(algorithms, start=1):
-                    name = alg.__class__.__name__
-                    st.write(f"• Running **{name}** …")
-                    log(f"[{stage_name}] Running {name}")
+    # Stage L2: Processing Algorithms
+    with tabs[1]:
+        with st.status("Stage L2: Processing Algorithms", expanded=True) as s:
+            try:
+                l2_output = cfg.run_l2(l1_data)
+                if l2_output:
+                    st.write("**L2 Output:**")
+                    st.code(f"Processed bands: {list(l2_output.processed_band_info.keys())}", language="text")
+                    if l2_output.debug_image:
+                        st.image(l2_output.debug_image, caption="L2 Debug Image", use_container_width=True)
+                    st.success("L2 processing completed.")
+                    log("[L2] Processing complete")
+                else:
+                    st.info("No L2 algorithms configured.")
+                    l2_output = None
+                s.update(label="L2 complete", state="complete")
+            except Exception as e:
+                st.error(f"L2 processing failed: {e}")
+                log(f"[L2] Failed: {e}")
+                s.update(label="L2 failed", state="error")
+                l2_output = None
 
-                    res = alg.process_data(l1_data)
-                    imgs = []
-                    items = []
+    # Stage L3: Generating Results
+    with tabs[2]:
+        with st.status("Stage L3: Generating Results", expanded=True) as s:
+            l2_datacube = l2_output.datacube if l2_output else None
+            try:
+                l3_results = cfg.run_l3(l1_data, l2_output)
+                if l3_results:
+                    st.write(f"**L3 Results:** {len(l3_results)} result(s) generated")
+                    st.success("L3 processing completed.")
+                    log(f"[L3] Generated {len(l3_results)} result(s)")
+                else:
+                    st.info("No L3 algorithms configured.")
+                    l3_results = []
+                s.update(label="L3 complete", state="complete")
+            except Exception as e:
+                st.error(f"L3 processing failed: {e}")
+                log(f"[L3] Failed: {e}")
+                s.update(label="L3 failed", state="error")
+                l3_results = []
 
-                    if res is not None:
-                        items = res if isinstance(res, (list, tuple)) else [res]
-                        for out in items:
-                            pil = getattr(out, 'debug_image', None)
-                            if pil is not None:
-                                arr = np.array(pil)
-                                imgs.append(normalize_image(arr))
-
-                    outputs.append((name, imgs, items))
-                    progress.progress(i / total)
-
-                s.update(label=f"{stage_name} complete", state="complete")
-
-            display_stage(stage_name, outputs)
-
-        return outputs
-
-    l2_outputs = run_stage(cfg.l2_algorithms, "Stage L2: Processing Algorithms", tabs[1])
-    l3_outputs = run_stage(cfg.l3_algorithms, "Stage L3: Generating Results", tabs[2])
+        # Display results OUTSIDE the status block to avoid nested expanders
+        if l3_results:
+            display_l3_results(l3_results)
 
     with tabs[3]:
         with st.status("Stage L4: Final Fusion", expanded=True) as s:
             try:
-                final = cfg.run_l4(l1_data)
-                st.success("L4 fusion completed.")
-                st.write("**Final Output:**")
-                st.code(str(final), language="text")
-                log("[L4] Fusion completed")
-                s.update(label="L4 complete", state="complete")
+                l3_results = l3_results if 'l3_results' in dir() else []
+                target_time_index = getattr(cfg.l4_algorithm, 'target_time_index', None)
+                final = cfg.run_l4(l1_data, l3_results, target_time_index)
+                if final is None:
+                    st.info("L4 fusion not configured (l4_algorithm is null)")
+                    log("[L4] Skipped - no algorithm configured")
+                    s.update(label="L4 skipped", state="complete")
+                else:
+                    st.success("L4 fusion completed.")
+                    st.write("**Final Output:**")
+                    st.code(str(final), language="text")
+                    log("[L4] Fusion completed")
+                    s.update(label="L4 complete", state="complete")
             except Exception as e:
                 st.error(f"L4 fusion failed: {e}")
                 log(f"[L4] Failed: {e}")

@@ -194,6 +194,8 @@ class PipelineConfig:
         return all_results
 
     def run_l4(self, l1_data: Any, l3_results: List[Any], target_time_index: Optional[int] = None) -> Any:
+        if self.l4_algorithm is None:
+            return None
         result = self.l4_algorithm.process_data(l1_data, l3_results, target_time_index)
         if hasattr(self.l4_algorithm, 'save_results'):
             self.l4_algorithm.save_results(result)

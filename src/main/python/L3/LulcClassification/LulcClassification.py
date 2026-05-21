@@ -28,6 +28,7 @@ from L3.LulcClassification.lulc_core import (
 load_dotenv()
 
 DEVICE = os.getenv("DEVICE", "cuda:0")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 
 def get_multiband_frame_from_input(input_obj, time_index: int, band_names: list[str], fallback_input=None) -> np.ndarray:
     """
@@ -99,7 +100,6 @@ class LulcClassification(L3_Algorithm):
         band_names: Optional[list[str]] = None,
         return_debug_image: bool = True,
         write_mask_netcdf: bool = False,
-        out_nc_path: Optional[str] = None,
         mask_labels: Optional[list[str]] = None,   # e.g. ["lulc"]
         var_name: str = "mask_data",               # avoid var="mask" when dim="mask"
         compress: bool = True,
@@ -112,7 +112,7 @@ class LulcClassification(L3_Algorithm):
 
         # output settings
         self.write_mask_netcdf = write_mask_netcdf
-        self.out_nc_path = out_nc_path
+        self.out_nc_path = OUTPUT_DIR
         self.mask_labels = mask_labels or ["lulc"]
         self.var_name = var_name
         self.compress = compress
