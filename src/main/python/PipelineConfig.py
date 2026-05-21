@@ -10,7 +10,10 @@ import json
 import importlib
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Type, ClassVar
+from typing import Any, Dict, List, Type, ClassVar, Optional
+import xarray as xr
+
+from L2.L2_Algorithm import L2_output
 
 # Configure module-level logger
 logger = logging.getLogger(__name__)
@@ -33,8 +36,16 @@ class PipelineConfig:
 
     # ─── Registry: type name → import path; extend via register() ──────────
     CLASS_REGISTRY: ClassVar[Dict[str, str]] = {
-        "Satellite": "L1.Satellite.Satellite",
         "Airborne":  "L1.Airborne.Airborne",
+        "Satellite": "L1.Satellite.Satellite",
+        "AMWI":      "L1.Satellite.SpectralIndices.AMWI",
+        "BSI":       "L1.Satellite.SpectralIndices.BSI",
+        "EVI":       "L1.Satellite.SpectralIndices.EVI",
+        "NDCI":      "L1.Satellite.SpectralIndices.NDCI",
+        "NDDI":      "L1.Satellite.SpectralIndices.NDDI",
+        "NDTI":      "L1.Satellite.SpectralIndices.NDTI",
+        "NDVI":      "L1.Satellite.SpectralIndices.NDVI",
+        "NDWI":      "L1.Satellite.SpectralIndices.NDWI",
         "AtmosphericCorrection": "L2.AtmosphericCorrection.AtmosphericCorrection",
         "CloudMasking":          "L2.CloudMasking.CloudMasking",
         "PanSharpening":         "L2.PanSharpening.PanSharpening",
@@ -46,8 +57,8 @@ class PipelineConfig:
         "LulcClassification":    "L3.LulcClassification.LulcClassification",
         "SemanticCaptioning":    "L3.SemanticCaptioning.SemanticCaptioning",
         "AMWI":                  "L3.SpectralIndices.AMWI",
-        "BSI":                  "L3.SpectralIndices.BSI",
-        "EVI":                  "L3.SpectralIndices.EVI",
+        "BSI":                   "L3.SpectralIndices.BSI",
+        "EVI":                   "L3.SpectralIndices.EVI",
         "NDCI":                  "L3.SpectralIndices.NDCI",
         "NDDI":                  "L3.SpectralIndices.NDDI",
         "NDTI":                  "L3.SpectralIndices.NDTI",
@@ -125,8 +136,18 @@ class PipelineConfig:
             if key in ("l2_algorithms", "l3_algorithms"):
                 return [cls._instantiate(cls._load_class(b["type"]), b.get("params", {}))
                         for b in block or []]
-            # single-instance section
-            return cls._instantiate(cls._load_class(block["type"]), block.get("params", {}))
+            # single-instance section - extract target_time_index if present
+            if block is None:
+                return None
+            params = block.get("params", {})
+            if isinstance(params, dict):
+                target_time_index = params.pop("target_time_index", None)
+            else:
+                target_time_index = None
+            alg = cls._instantiate(cls._load_class(block["type"]), params)
+            if target_time_index is not None:
+                alg.target_time_index = target_time_index
+            return alg
 
         l1 = build_section("l1_input")
         l2 = build_section("l2_algorithms")
@@ -156,20 +177,38 @@ class PipelineConfig:
     def run_l1(self) -> Any:
         return self.l1_input
 
-    def run_l2(self, l1_data: Any) -> List[Any]:
-        return [alg.process_data(l1_data) for alg in self.l2_algorithms]
+    def run_l2(self, l1_data: Any) -> Optional[L2_output]:
+        if not self.l2_algorithms:
+            return None
+        results = [alg.process_data(l1_data) for alg in self.l2_algorithms]
+        return results[0] if results else None
 
-    def run_l3(self, l1_data: Any) -> List[Any]:
-        return [alg.process_data(l1_data) for alg in self.l3_algorithms]
+    def run_l3(self, l1_data: Any, l2_output: Optional[L2_output] = None) -> List[Any]:
+        l2_datacube = l2_output.datacube if l2_output else None
+        all_results = []
+        for alg in self.l3_algorithms:
+            results = alg.process_data(l1_data, l2_datacube)
+            all_results.extend(results)
+            if hasattr(alg, 'save_results'):
+                alg.save_results(results)
+        return all_results
 
-    def run_l4(self, l1_data: Any) -> Any:
-        return self.l4_algorithm.process_data(l1_data)
+    def run_l4(self, l1_data: Any, l3_results: List[Any], target_time_index: Optional[int] = None) -> Any:
+        result = self.l4_algorithm.process_data(l1_data, l3_results, target_time_index)
+        if hasattr(self.l4_algorithm, 'save_results'):
+            self.l4_algorithm.save_results(result)
+        return result
 
     def run(self) -> Any:
         """
         Executes the full pipeline: L1 -> L2 -> L3 -> L4.
         """
         l1 = self.run_l1()
-        l2 = self.run_l2(l1)
-        l3 = self.run_l3(l1)
-        return self.run_l4(l1)
+        l2_output = self.run_l2(l1)
+        l3_results = self.run_l3(l1, l2_output)
+
+        if self.l4_algorithm is None:
+            return l3_results
+
+        target_time_index = getattr(self.l4_algorithm, 'target_time_index', None)
+        return self.run_l4(l1, l3_results, target_time_index)
