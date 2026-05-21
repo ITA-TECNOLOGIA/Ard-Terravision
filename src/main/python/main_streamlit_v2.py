@@ -224,7 +224,7 @@ with st.sidebar:
     st.divider()
 
     # -----------------------------------------------------------------
-    # --- [NEW] OpenEO Login Section (Client Credentials UI) ---
+    # OpenEO Login Section
     # -----------------------------------------------------------------
     st.header("🔐 OpenEO Login")
     
@@ -251,18 +251,16 @@ with st.sidebar:
                 try:
                     with st.spinner("Authenticating..."):
                         
-                        # --- [THIS IS YOUR NEW, CORRECT LOGIC] ---
-                        # 1. Connect (using your specified URL)
+                        # 1. Connect to OpenEO
                         connection = openeo.connect("openeo.dataspace.copernicus.eu")
                         
-                        # 2. Authenticate (using your specified function)
+                        # 2. Authenticate with OIDC
                         connection.authenticate_oidc_client_credentials(
                             client_id=client_id,
                             client_secret=client_secret
                         )
-                        # --- [END OF NEW LOGIC] ---
 
-                        # 3. Test connection (good practice)
+                        # 3. Test connection
                         connection.list_jobs(limit=1) 
                         
                         # 4. Save the successful connection
@@ -276,11 +274,8 @@ with st.sidebar:
             else:
                 st.warning("Please enter both Client ID and Client Secret.")
     st.divider() 
-    # --- [END] of OpenEO Login Section ---
-    # -----------------------------------------------------------------
 
-
-    # --- [ OpenEO Data Download Section ] ---
+    # OpenEO Data Download Section
     st.header("🛰️ OpenEO Data Download")
     try:
         shapefiles = [f for f in os.listdir(SHAPEFILES_PATH) if f.endswith('.shp')]
@@ -298,9 +293,7 @@ with st.sidebar:
     sync_download = st.checkbox("Download to my computer")
     download_btn = st.button("📥 Download Data", use_container_width=True)
 
-    # -----------------------------------------------------------------
-    # --- [Download Button Logic - UNCHANGED, now works] ---
-    # -----------------------------------------------------------------
+    # Download Button Logic
     if download_btn:
         
         # 1. Check if user is logged in
@@ -365,7 +358,7 @@ log_lines = []
 def log(msg: str):
     log_lines.append(msg)
 
-# --- [ Pipeline Runner Logic (Unchanged, but bugfixed) ] ---
+# Pipeline Runner Logic
 if st.session_state.run_pipeline:
     if uploaded_json_file is not None:
         uploaded_json_file.seek(0)
@@ -412,7 +405,6 @@ if st.session_state.run_pipeline:
                 l1_data = cfg.run_l1()
                 st.write("**Loaded input:**")
                 
-                # --- [BUG FIX] Was ll1_data, changed to l1_data ---
                 st.code(str(l1_data), language="text") 
                 
                 log("[L1] Input loaded")
