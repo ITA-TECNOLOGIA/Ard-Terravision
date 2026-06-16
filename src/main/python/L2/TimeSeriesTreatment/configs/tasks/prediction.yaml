@@ -1,0 +1,8 @@
+task_name: prediction
+
+pipeline_switches:
+  outliers: true
+  interpolation: true
+  features: true
+  smoothing: true
+  normalization: true

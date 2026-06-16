@@ -52,7 +52,6 @@ class DetrexOutput:
         
 class ObjectDetectionDetrex(L3_Algorithm):
     def __init__(self,
-                 time_indices: list[int],
                  rgb_band_names: list[list[str]]):
         super().__init__()
 
@@ -64,7 +63,7 @@ class ObjectDetectionDetrex(L3_Algorithm):
         ]
         confidence_threshold = 0.5
 
-        self.time_indices = time_indices
+        self.time_indices: List[int] = []  # injected by PipelineConfig from L1
         self.rgb_band_names = rgb_band_names
 
         args = argparse.Namespace(

@@ -1,0 +1,193 @@
+dataset_name: tharsis_tilt
+
+variables:
+
+  x_mm_per_m:
+    semantic: instantaneous
+  y_mm_per_m:
+    semantic: instantaneous
+  z_mm_per_m:
+    semantic: instantaneous
+  x_g:
+    semantic: instantaneous
+  y_g:
+    semantic: instantaneous
+  z_g:
+    semantic: instantaneous
+  temp_c:
+    semantic: instantaneous
+  mesh_batt_v:
+    semantic: instantaneous
+  ref_v:
+    semantic: instantaneous
+  radio_signal_strength_incoming_dbm:
+    semantic: instantaneous
+  radio_signal_strength_outgoing_dbm:
+    semantic: instantaneous
+  hops:
+    semantic: counter
+  intervals_active:
+    semantic: counter
+  packets_queued:
+    semantic: counter
+  type:
+    semantic: state
+  radio_connection_group:
+    semantic: state
+  mesh_parent:
+    semantic: categorical
+
+resample:
+  freq: "10min"
+
+  default_by_semantic:
+    instantaneous: mean
+    cumulative: last
+    counter: max
+    max_signal: max
+    circular: circular_mean
+    location: median
+    state: first
+    categorical: first
+
+  override: {}
+
+
+outliers:
+  enabled: true
+  write_flags: true
+  window: 12
+  threshold: 6.0
+  noise_floor: 0.0005
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+    counter:
+      enabled: false
+    state:
+      enabled: false
+    categorical:
+      enabled: false
+    cumulative:
+      enabled: false
+    max_signal:
+      enabled: true
+    circular:
+      enabled: false
+    location:
+      enabled: false
+
+  override:
+    x_mm_per_m:
+      enabled: true
+    y_mm_per_m:
+      enabled: true
+    z_mm_per_m:
+      enabled: true
+    x_g:
+      enabled: true
+    y_g:
+      enabled: true
+    z_g:
+      enabled: true
+
+    temp_c:
+      enabled: false
+    mesh_batt_v:
+      enabled: false
+    ref_v:
+      enabled: false
+    radio_signal_strength_incoming_dbm:
+      enabled: false
+    radio_signal_strength_outgoing_dbm:
+      enabled: false
+
+
+interpolation:
+  enabled: true
+  write_flags: true
+  max_gap: "1h"
+
+  by_semantic:
+    instantaneous: linear
+    max_signal: linear
+    counter: forward_fill
+    cumulative: forward_fill
+    circular: forward_fill
+    location: forward_fill
+    state: forward_fill
+    categorical: forward_fill
+
+  override: {}
+
+
+features:
+  enabled: true
+
+  pipelines:
+    - diff
+    - magnitude
+
+  diff:
+    suffix: "diff"
+    variables:
+      - x_mm_per_m
+      - y_mm_per_m
+      - z_mm_per_m
+      - x_g
+      - y_g
+      - z_g
+
+  magnitude:
+    groups:
+      - name: mag_xy
+        vars: [x_mm_per_m, y_mm_per_m]
+      - name: mag_xz
+        vars: [x_mm_per_m, z_mm_per_m]
+      - name: mag_yz
+        vars: [y_mm_per_m, z_mm_per_m]
+      - name: mag_3d
+        vars: [x_mm_per_m, y_mm_per_m, z_mm_per_m]
+
+smoothing:
+  enabled: true
+  window: 6
+  min_valid: 4
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+      method: mean
+    max_signal:
+      method: mean
+    location:
+      method: mean
+    counter:
+      enabled: false
+    cumulative:
+      enabled: false
+    circular:
+      enabled: false
+    state:
+      enabled: false
+    categorical:
+      enabled: false
+
+  override: {}
+
+
+normalization:
+  enabled: true
+
+  by_semantic:
+    instantaneous: zscore
+    max_signal: zscore
+    location: zscore
+    counter: none
+    cumulative: none
+    circular: none
+    state: none
+    categorical: none
+
+  override: {}

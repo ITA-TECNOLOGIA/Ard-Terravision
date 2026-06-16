@@ -41,8 +41,7 @@ class TestL4LLaVA(unittest.TestCase):
         l2 = pipeline.run_l2(l1)
         l3_results = pipeline.run_l3(l1, l2)
 
-        target_time_index = getattr(pipeline.l4_algorithm, 'target_time_index', None)
-        l4_result = pipeline.run_l4(l1, l3_results, target_time_index)
+        l4_result = pipeline.run_l4(l1, l3_results)
 
         self.assertIsNotNone(l4_result)
         self.assertIsInstance(l4_result, list)

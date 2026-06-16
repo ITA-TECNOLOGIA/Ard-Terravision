@@ -1,0 +1,8 @@
+task_name: anomaly_detection
+
+pipeline_switches:
+  outliers: false
+  interpolation: false
+  features: true
+  smoothing: false
+  normalization: false

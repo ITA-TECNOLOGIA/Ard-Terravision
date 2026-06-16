@@ -35,8 +35,7 @@ class TestFullPipeline(unittest.TestCase):
 
         # Run L4
         if pipeline.l4_algorithm:
-            target_time_index = getattr(pipeline.l4_algorithm, 'target_time_index', None)
-            l4_result = pipeline.run_l4(l1_data, l3_results, target_time_index)
+            l4_result = pipeline.run_l4(l1_data, l3_results)
             self.assertIsNotNone(l4_result)
 
         # Run full pipeline
@@ -57,7 +56,7 @@ class TestFullPipeline(unittest.TestCase):
         config_path = "pipelines/satellite_example_canteras.json"
         pipeline = PipelineConfig.from_json(config_path)
 
-        self.assertIsNotNone(pipeline.l1_input)
+        self.assertIsNotNone(pipeline.l1_inputs[0])
         self.assertIsInstance(pipeline.l2_algorithms, list)
         self.assertIsInstance(pipeline.l3_algorithms, list)
         self.assertIsNotNone(pipeline.l4_algorithm)

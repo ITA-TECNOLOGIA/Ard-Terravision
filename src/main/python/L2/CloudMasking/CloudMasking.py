@@ -18,6 +18,7 @@ import xarray as xr
 
 from L2.L2_Algorithm import L2_Algorithm, L2_output
 from L2.CloudMasking.satellite_cloud_removal_dip.src import LitDIP
+from logger import logger
 load_dotenv()
 
 @dataclass
@@ -30,13 +31,12 @@ class CloudMaskingResult:
 
 class CloudMasking(L2_Algorithm):
     def __init__(self,
-                time_indices: List[int],
                 gt_time_index: int | None = None,
                 band_names: List[str] = [],
                 rgb_band_names: List[List[str]] = []):
         
         self.gt_time_index = gt_time_index  
-        self.time_indices = time_indices
+        self.time_indices: List[int] = []  # injected by PipelineConfig from L1
         self.band_names = band_names
         self.rgb_band_names = rgb_band_names
         # TODO assert rgb_band_names are not repeated
@@ -54,7 +54,7 @@ class CloudMasking(L2_Algorithm):
         max_clean_score = -1.0
 
         try:
-            num_times = len(input.times)
+            num_times = input.datacube.sizes.get('t', 100)
         except:
             num_times = 100 
 
@@ -86,12 +86,20 @@ class CloudMasking(L2_Algorithm):
         print(f"[CloudMasking] SELECTED index {best_idx} as GT ({max_clean_score*100:.2f}% clean surface)")
         return best_idx
 
-    def process_data(self, input) -> L2_output:
+    def process_data(self, l1_inputs) -> L2_output:
+        input = l1_inputs[0] if isinstance(l1_inputs, list) else l1_inputs
         processed_bands: Dict[str, np.ndarray] = {}
         processed_band_names: List[str] = []
         debug_images: List[Image.Image] = []
 
         original_datacube = input.get_datacube()
+
+        if not self.time_indices:
+            logger.warning(
+                "CloudMasking has no time_indices injected. "
+                "Falling back to all time indices from datacube."
+            )
+            self.time_indices = list(range(original_datacube.sizes.get('t', 0)))
 
         if self.gt_time_index is None:
             self.gt_time_index = self._find_best_gt_time_index(

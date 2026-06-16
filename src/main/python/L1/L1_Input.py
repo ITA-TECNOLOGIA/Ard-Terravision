@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------------
 
 from abc import ABC, abstractmethod
-from typing import Any, Tuple, Sequence
+from typing import Any, Tuple, Sequence, List, Optional
 import numpy as np
 
 class L1_Input(ABC):
@@ -16,6 +16,13 @@ class L1_Input(ABC):
     Subclasses must implement all core data operations for loading,
     inspecting, and modifying the underlying datacube.
     """
+
+    def __init__(self,
+                 time_indices: Optional[List[int]] = None,
+                 debug_time_index: int = 0):
+        self.time_indices = time_indices or []
+        self.debug_time_index = debug_time_index
+
     @abstractmethod
     def get_debug_image(self) -> np.ndarray:
         """

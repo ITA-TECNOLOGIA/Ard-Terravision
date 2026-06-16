@@ -40,7 +40,6 @@ class TestL4Qwen(unittest.TestCase):
         from L4.QwenCustom.QwenCustom import QwenCustom
         pipeline.l4_algorithm = QwenCustom(
             args_list=[{"time_index": 0}],
-            target_time_index=0,
             base_model="Qwen/Qwen2.5-VL-7B-Instruct",
             prompt="Describe the content of the image.",
             system_prompt="You are a helpful assistant."

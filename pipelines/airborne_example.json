@@ -1,42 +1,45 @@
 {
     "l1_input": {
-      "type": "Airborne",
-      "params": {
-        "path": "/datassd/proyectos/terravision/terravision_airborne/sp202402",
-        "hslvl3_project": "sp3",
-        "time_indices": [2]
-      }
+        "type": "Airborne",
+        "params": {
+            "path": "/datassd/proyectos/terravision/terravision_airborne/sp202402",
+            "hslvl3_project": "sp3",
+            "time_indices": [
+                2
+            ]
+        }
     },
     "l2_algorithms": [],
     "l3_algorithms": [
-      {
-        "type": "ObjectDetectionGroundedSAM2",
-        "params": {
-          "detection_prompt": "trees",
-          "args_list": [
-            {
-              "airborne_tile": "v1-5-5"
+        {
+            "type": "ObjectDetectionGroundedSAM2",
+            "params": {
+                "detection_prompt": "trees",
+                "args_list": [
+                    {
+                        "airborne_tile": "v1-5-5"
+                    }
+                ]
             }
-          ]
         }
-      }
     ],
     "l4_algorithm": {
-      "type": "LLaVACustom",
-      "params": {
-        "args_list": [
-          {"airborne_tile": "v1-0-1"}
-        ],
-        "target_time_index": null,
-        "model_path": null,
-        "model_base": "liuhaotian/llava-v1.5-7b",
-        "conv_mode": null,
-        "temperature": 0.2,
-        "max_new_tokens": 512,
-        "load_8bit": false,
-        "load_4bit": false,
-        "debug": false,
-        "prompt": "Describe the content of the image."
-      }
+        "type": "LLaVACustom",
+        "params": {
+            "args_list": [
+                {
+                    "airborne_tile": "v1-0-1"
+                }
+            ],
+            "model_path": null,
+            "model_base": "liuhaotian/llava-v1.5-7b",
+            "conv_mode": null,
+            "temperature": 0.2,
+            "max_new_tokens": 512,
+            "load_8bit": false,
+            "load_4bit": false,
+            "debug": false,
+            "prompt": "Describe the content of the image."
+        }
     }
-  } 
+}

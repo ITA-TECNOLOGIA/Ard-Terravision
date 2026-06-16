@@ -80,11 +80,14 @@ def run_florence2(task_prompt, text_input, model, processor, image):
 class ObjectDetectionGroundedSAM2(L3_Algorithm):
     def __init__(self, 
                  detection_prompt: str,
-                 args_list: List[Dict[str, Any]]):
+                 args_list: List[Dict[str, Any]] = None):
         super().__init__()
+        if args_list is None:
+            args_list = []
         if not isinstance(args_list, list) or not all(isinstance(d, dict) for d in args_list):
             raise ValueError("`args_list` must be a list of dicts")
         self.args_list = args_list
+        self.time_indices: List[int] = []  # injected by PipelineConfig from L1
 
         # Config
         # FLORENCE2_MODEL_ID = "microsoft/Florence-2-large"
@@ -118,83 +121,86 @@ class ObjectDetectionGroundedSAM2(L3_Algorithm):
         data_source = l2_datacube if l2_datacube is not None else input
         getter = data_source.get_rgb_image if hasattr(data_source, 'get_rgb_image') else input.get_rgb_image
 
-        for kwargs in self.args_list:
-            frame = getter(**kwargs)
-            frame = np.nan_to_num(frame, nan=0).astype(np.float32)
-            tonemapper = cv2.createTonemapReinhard(1.2,0,0,0)
-            ldr = tonemapper.process(frame)
-            ldr_8bit = (ldr * 255).clip(0,255).astype(np.uint8)
-            pil_input = Image.fromarray(ldr_8bit).convert("RGB")
+        args_iter = self.args_list if self.args_list else [{}]
 
-            # open-vocabulary detection
-            device_type = self.torch_device.type
-            dtype = torch.bfloat16 if device_type == "cuda" else torch.float32
-            with torch.autocast(device_type=device_type, dtype=dtype):
-                prompt = "<OPEN_VOCABULARY_DETECTION>"
-                florence_output = run_florence2(
-                    prompt,
-                    self.detection_prompt,
-                    self.florence2_model,
-                    self.florence2_processor,
-                    pil_input
+        for time_index in self.time_indices:
+            for kwargs in args_iter:
+                merged_kwargs = {**kwargs, 'time_index': time_index}
+                frame = getter(**merged_kwargs)
+                frame = np.nan_to_num(frame, nan=0).astype(np.float32)
+                tonemapper = cv2.createTonemapReinhard(1.2,0,0,0)
+                ldr = tonemapper.process(frame)
+                ldr_8bit = (ldr * 255).clip(0,255).astype(np.uint8)
+                pil_input = Image.fromarray(ldr_8bit).convert("RGB")
+
+                # open-vocabulary detection
+                device_type = self.torch_device.type
+                dtype = torch.bfloat16 if device_type == "cuda" else torch.float32
+                with torch.autocast(device_type=device_type, dtype=dtype):
+                    prompt = "<OPEN_VOCABULARY_DETECTION>"
+                    florence_output = run_florence2(
+                        prompt,
+                        self.detection_prompt,
+                        self.florence2_model,
+                        self.florence2_processor,
+                        pil_input
+                    )
+
+                raw_text = florence_output["raw_text"]
+                florence_parsed_output = florence_output["parsed_output"]
+                flor = florence_parsed_output[prompt]
+
+                boxes = np.array(flor["bboxes"])
+                names = flor["bboxes_labels"]
+
+                # SAM2 mask prediction
+                self.sam2_predictor.set_image(np.array(pil_input))
+                masks, scores, logits = self.sam2_predictor.predict(
+                    point_coords=None,
+                    point_labels=None,
+                    box=boxes,
+                    multimask_output=False
+                )
+                masks = masks.squeeze(1) if masks.ndim == 4 else masks
+
+                sam_scores = scores.tolist() if hasattr(scores, "tolist") else list(scores)
+
+                # annotate
+                dets = sv.Detections(xyxy=boxes, mask=masks.astype(bool),
+                                      class_id=np.arange(len(names)))
+                box_ann = sv.BoxAnnotator().annotate(ldr_8bit.copy(), dets)
+                box_ann = sv.LabelAnnotator().annotate(box_ann, dets,
+                                                      labels=[str(n) for n in names])
+                mask_ann = sv.MaskAnnotator().annotate(box_ann.copy(), dets)
+
+                frame_result = FrameResult(
+                    kwargs=merged_kwargs,
+                    input_image=pil_input,
+                    annotated_boxes_image=Image.fromarray(box_ann),
+                    annotated_mask_image=Image.fromarray(mask_ann),
+                    detections=[
+                        Detection(
+                            bbox={"x":int(b[0]), "y":int(b[1]),
+                                  "width":int(b[2]-b[0]), "height":int(b[3]-b[1])},
+                            class_id=name
+                        ) for b, name in zip(boxes, names)
+                    ],
+                    florence_raw_text=raw_text,
+                    florence_parsed_output=florence_parsed_output,
+                    sam_scores=sam_scores
                 )
 
-            raw_text = florence_output["raw_text"]
-            florence_parsed_output = florence_output["parsed_output"]
-            flor = florence_parsed_output[prompt]
+                w, h = pil_input.size
+                row = Image.new("RGB", (w * 3, h))
+                row.paste(pil_input, (0, 0))
+                row.paste(frame_result.annotated_boxes_image, (w, 0))
+                row.paste(frame_result.annotated_mask_image, (w*2, 0))
 
-            boxes = np.array(flor["bboxes"])
-            names = flor["bboxes_labels"]
-
-            # SAM2 mask prediction
-            self.sam2_predictor.set_image(np.array(pil_input))
-            masks, scores, logits = self.sam2_predictor.predict(
-                point_coords=None,
-                point_labels=None,
-                box=boxes,
-                multimask_output=False
-            )
-            masks = masks.squeeze(1) if masks.ndim == 4 else masks
-
-            sam_scores = scores.tolist() if hasattr(scores, "tolist") else list(scores)
-
-            # annotate
-            dets = sv.Detections(xyxy=boxes, mask=masks.astype(bool),
-                                  class_id=np.arange(len(names)))
-            box_ann = sv.BoxAnnotator().annotate(ldr_8bit.copy(), dets)
-            box_ann = sv.LabelAnnotator().annotate(box_ann, dets,
-                                                  labels=[str(n) for n in names])
-            mask_ann = sv.MaskAnnotator().annotate(box_ann.copy(), dets)
-
-            frame_result = FrameResult(
-                kwargs=kwargs,
-                input_image=pil_input,
-                annotated_boxes_image=Image.fromarray(box_ann),
-                annotated_mask_image=Image.fromarray(mask_ann),
-                detections=[
-                    Detection(
-                        bbox={"x":int(b[0]), "y":int(b[1]),
-                              "width":int(b[2]-b[0]), "height":int(b[3]-b[1])},
-                        class_id=name
-                    ) for b, name in zip(boxes, names)
-                ],
-                florence_raw_text=raw_text,
-                florence_parsed_output=florence_parsed_output,
-                sam_scores=sam_scores
-            )
-
-            w, h = pil_input.size
-            row = Image.new("RGB", (w * 3, h))
-            row.paste(pil_input, (0, 0))
-            row.paste(frame_result.annotated_boxes_image, (w, 0))
-            row.paste(frame_result.annotated_mask_image, (w*2, 0))
-
-            time_index = kwargs.get('time_index', 0)
-            results.append(L3_result(
-                debug_image=row,
-                algorithm_results=frame_result,
-                time_indices=[time_index],
-                result_type="detections"
-            ))
+                results.append(L3_result(
+                    debug_image=row,
+                    algorithm_results=frame_result,
+                    time_indices=[time_index],
+                    result_type="detections"
+                ))
 
         return results

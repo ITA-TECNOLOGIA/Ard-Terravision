@@ -1,0 +1,249 @@
+dataset_name: canteras_tilt
+
+variables:
+
+  Tiltmeter-xAxis-deg:
+    semantic: instantaneous
+  Tiltmeter-yAxis-deg:
+    semantic: instantaneous
+  Tiltmeter-zAxis-deg:
+    semantic: instantaneous
+  Tiltmeter-xAxisStd-deg:
+    semantic: max_signal
+  Tiltmeter-yAxisStd-deg:
+    semantic: max_signal
+  Tiltmeter-zAxisStd-deg:
+    semantic: max_signal
+  Thermometer-temperature-Cel:
+    semantic: instantaneous
+  Corrections-length-count:
+    semantic: counter
+  Corrections-numPerSample-count:
+    semantic: counter
+  GPSFix-samplesNoFix-count:
+    semantic: counter
+  LongTermAgg-numSamples-count:
+    semantic: counter
+  ShortTermAgg-numSamples-count:
+    semantic: counter
+  1Sample-numSamples-count:
+    semantic: counter
+  Corrections-applied-count:
+    semantic: counter
+  Corrections-unexpectedPackets-count:
+    semantic: counter
+  GPSFix-timeToFix-s:
+    semantic: max_signal
+  Corrections-timeToFirst-s:
+    semantic: max_signal
+  RTK-timeToFix-s:
+    semantic: max_signal
+  Time-deviation-s:
+    semantic: max_signal
+  Satellites-inUse-count:
+    semantic: max_signal
+  Satellites-inView-count:
+    semantic: max_signal
+  DilutionOfPrecision-horizontal-count:
+    semantic: max_signal
+  DilutionOfPrecision-vertical-count:
+    semantic: max_signal
+  BeiDouB1-cn0-dBHz:
+    semantic: instantaneous
+  BeiDouB2-cn0-dBHz:
+    semantic: instantaneous
+  GalileoE1-cn0-dBHz:
+    semantic: instantaneous
+  GalileoE5b-cn0-dBHz:
+    semantic: instantaneous
+  GLONASSG1-cn0-dBHz:
+    semantic: instantaneous
+  GLONASSG2-cn0-dBHz:
+    semantic: instantaneous
+  GPSL1-cn0-dBHz:
+    semantic: instantaneous
+  GPSL2-cn0-dBHz:
+    semantic: instantaneous
+  CorrectionsRadioInfo-rssiAvg-dBm:
+    semantic: instantaneous
+  CorrectionsRadioInfo-snrAvg-dB:
+    semantic: instantaneous
+  CorrectionsRadioInfo-rssiStdDev-dBm:
+    semantic: max_signal
+  CorrectionsRadioInfo-snrStdDev-dB:
+    semantic: max_signal
+  PositionMADLongAgg-alt-mm:
+    semantic: instantaneous
+  PositionMADLongAgg-latLon-mm:
+    semantic: instantaneous
+  PositionMAD1Sample-alt-mm:
+    semantic: instantaneous
+  PositionMAD1Sample-latLon-mm:
+    semantic: instantaneous
+  PositionMADShortAgg-alt-mm:
+    semantic: instantaneous
+  PositionMADShortAgg-latLon-mm:
+    semantic: instantaneous
+  LongTermAgg-lat-DD:
+    semantic: location
+  LongTermAgg-lon-DD:
+    semantic: location
+  LongTermAgg-alt-m:
+    semantic: location
+  ShortTermAgg-lat-DD:
+    semantic: location
+  ShortTermAgg-lon-DD:
+    semantic: location
+  ShortTermAgg-alt-m:
+    semantic: location
+  1Sample-lat-DD:
+    semantic: location
+  1Sample-lon-DD:
+    semantic: location
+  1Sample-alt-m:
+    semantic: location
+
+resample:
+  freq: "60min"
+
+  default_by_semantic:
+    instantaneous: mean
+    cumulative: last
+    counter: max
+    max_signal: max
+    circular: circular_mean
+    location: median
+    state: first
+    categorical: first
+
+  override: {}
+
+outliers:
+  enabled: true
+  write_flags: true
+  window: 12
+  threshold: 6.0
+  noise_floor: 0.0
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+    max_signal:
+      enabled: true
+    counter:
+      enabled: false
+    location:
+      enabled: false
+    cumulative:
+      enabled: false
+    circular:
+      enabled: false
+    state:
+      enabled: false
+    categorical:
+      enabled: false
+
+  override: {}
+
+
+interpolation:
+  enabled: true
+  write_flags: true
+  max_gap: "7h"
+
+  by_semantic:
+    instantaneous: linear
+    max_signal: linear
+    counter: forward_fill
+    location: forward_fill
+    cumulative: forward_fill
+    circular: forward_fill
+    state: forward_fill
+    categorical: forward_fill
+
+  override: {}
+
+
+features:
+  enabled: true
+
+  pipelines:
+    - diff
+    - magnitude
+    - geospatial
+
+  diff:
+    suffix: "diff"
+    variables:
+      - Tiltmeter-xAxis-deg
+      - Tiltmeter-yAxis-deg
+      - Tiltmeter-zAxis-deg
+
+  magnitude:
+    groups:
+      - name: mag_tilt_xy
+        vars: [Tiltmeter-xAxis-deg, Tiltmeter-yAxis-deg]
+
+      - name: mag_tilt_xz
+        vars: [Tiltmeter-xAxis-deg, Tiltmeter-zAxis-deg]
+
+      - name: mag_tilt_yz
+        vars: [Tiltmeter-yAxis-deg, Tiltmeter-zAxis-deg]
+
+      - name: mag_tilt_3d
+        vars: [Tiltmeter-xAxis-deg,
+              Tiltmeter-yAxis-deg,
+              Tiltmeter-zAxis-deg]
+
+  geospatial:
+    reference:
+      mode: first_valid
+
+    coordinate_sets:
+      - name: longterm
+        lat: LongTermAgg-lat-DD
+        lon: LongTermAgg-lon-DD
+        alt: LongTermAgg-alt-m
+
+
+smoothing:
+  enabled: true
+  window: 6
+  min_valid: 4
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+      method: mean
+    max_signal:
+      method: mean
+    location:
+      method: mean
+    counter:
+      enabled: false
+    cumulative:
+      enabled: false
+    circular:
+      enabled: false
+    state:
+      enabled: false
+    categorical:
+      enabled: false
+
+  override: {}
+
+
+normalization:
+  enabled: true
+
+  by_semantic:
+    instantaneous: zscore
+    max_signal: zscore
+    location: zscore
+    counter: none
+    cumulative: none
+    circular: none
+    state: none
+    categorical: none
+
+  override: {}

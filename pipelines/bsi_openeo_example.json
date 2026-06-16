@@ -1,25 +1,21 @@
 {
     "l1_input": {
-      "type": "BSI",
-      "params": {
-        "use_openeo": true,
-        "start_date": "2025-01-01",
-        "end_date": "2025-01-31",
-        "shapefile": "canteras.shp",
-        "debug_time_index": 4
-      }
-    },
-    "l2_algorithms": [
-      ],
-    "l3_algorithms": [
-    ],
-    "l4_algorithm": {
-      "type": "DummyLLaVACustom",
-      "params": [
-        {
-          "time_index": 3
+        "type": "BSI",
+        "params": {
+            "use_openeo": true,
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-31",
+            "shapefile": "canteras.shp",
+            "debug_time_index": 4
         }
-      ]
+    },
+    "l2_algorithms": [],
+    "l3_algorithms": [],
+    "l4_algorithm": {
+        "type": "DummyLLaVACustom",
+        "params": [
+            {
+            }
+        ]
     }
-  }
-  
+}

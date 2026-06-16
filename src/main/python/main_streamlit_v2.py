@@ -52,6 +52,24 @@ def list_pipelines(folder: str = "pipelines", ext: str = ".json"):
     return []
 
 
+def get_first_datacube_path(config_data):
+    if "l1_input" in config_data:
+        return config_data["l1_input"].get("params", {}).get("datacube_path", "Not found")
+    if "l1_inputs" in config_data and config_data["l1_inputs"]:
+        return config_data["l1_inputs"][0].get("params", {}).get("datacube_path", "Not found")
+    return "Not found"
+
+
+def override_datacube_path(config_data, new_path):
+    if "l1_input" in config_data:
+        config_data["l1_input"]["params"]["datacube_path"] = new_path
+        return True
+    if "l1_inputs" in config_data and config_data["l1_inputs"]:
+        config_data["l1_inputs"][0]["params"]["datacube_path"] = new_path
+        return True
+    return False
+
+
 
 
 def display_l3_results(l3_results: list):
@@ -192,7 +210,7 @@ with st.sidebar:
             pipeline_path = os.path.join("pipelines", selected)
             with open(pipeline_path, "r") as f:
                 config_data = json.load(f)
-            datacube_path = config_data.get("l1_input", {}).get("params", {}).get("datacube_path", "Not found")
+            datacube_path = get_first_datacube_path(config_data)
             st.info(f"Datacube in this pipeline: `{datacube_path}`")
         except (json.JSONDecodeError, KeyError, FileNotFoundError):
             st.warning("Could not read datacube path from the selected pipeline.")
@@ -212,7 +230,7 @@ with st.sidebar:
         try:
             uploaded_json_file.seek(0)
             config_data = json.load(uploaded_json_file)
-            datacube_path = config_data.get("l1_input", {}).get("params", {}).get("datacube_path", "Not found")
+            datacube_path = get_first_datacube_path(config_data)
             st.info(f"Datacube in JSON: `{datacube_path}`")
         except (json.JSONDecodeError, KeyError):
             st.warning("Could not read datacube path from the uploaded JSON.")
@@ -374,18 +392,24 @@ if st.session_state.run_pipeline:
             with open(save_path, "wb") as f:
                 f.write(uploaded_nc_file.getbuffer())
             try:
-                config_data["l1_input"]["params"]["datacube_path"] = save_path
-                st.write(f"✔️ Overriding input with uploaded .nc file: **{uploaded_nc_file.name}**")
-                log(f"[INIT] Overriding L1 input with uploaded file {save_path}")
+                if override_datacube_path(config_data, save_path):
+                    st.write(f"✔️ Overriding input with uploaded .nc file: **{uploaded_nc_file.name}**")
+                    log(f"[INIT] Overriding L1 input with uploaded file {save_path}")
+                else:
+                    st.warning("Could not find L1 input path to override.")
+                    log("[INIT] Failed to override L1 input path.")
             except KeyError:
                 st.warning("Could not find 'l1_input.params.datacube_path' to override.")
                 log("[INIT] Failed to override L1 input path.")
         elif selected_openeo_input != "Default":
             openeo_path = os.path.join(OPENEO_DOWNLOADS_PATH, selected_openeo_input)
             try:
-                config_data["l1_input"]["params"]["datacube_path"] = openeo_path
-                st.write(f"✔️ Overriding input with: **{selected_openeo_input}**")
-                log(f"[INIT] Overriding L1 input with {openeo_path}")
+                if override_datacube_path(config_data, openeo_path):
+                    st.write(f"✔️ Overriding input with: **{selected_openeo_input}**")
+                    log(f"[INIT] Overriding L1 input with {openeo_path}")
+                else:
+                    st.warning("Could not find L1 input path to override.")
+                    log("[INIT] Failed to override L1 input path.")
             except KeyError:
                 st.warning("Could not find 'l1_input.params.datacube_path' to override.")
                 log("[INIT] Failed to override L1 input path.")
@@ -405,11 +429,14 @@ if st.session_state.run_pipeline:
                 
                 log("[L1] Input loaded")
                 try:
-                    img = getattr(l1_data, 'get_debug_image', lambda: None)()
-                    if img is not None:
-                        st.image(img, caption="Input Debug Image", use_container_width=True)
-                    else:
-                        st.info("No debug image available for input.")
+                    items = l1_data if isinstance(l1_data, list) else [l1_data]
+                    for i, item in enumerate(items):
+                        img = getattr(item, 'get_debug_image', lambda: None)()
+                        if img is not None:
+                            caption = f"L1 Debug Image #{i+1}" if len(items) > 1 else "Input Debug Image"
+                            st.image(img, caption=caption, use_container_width=True)
+                        elif len(items) == 1:
+                            st.info("No debug image available for input.")
                 except Exception as e:
                     st.error(f"Input debug failed: {e}")
                     log(f"[L1] Debug image error: {e}")
@@ -471,8 +498,7 @@ if st.session_state.run_pipeline:
         with st.status("Stage L4: Final Fusion", expanded=True) as s:
             try:
                 l3_results = l3_results if 'l3_results' in dir() else []
-                target_time_index = getattr(cfg.l4_algorithm, 'target_time_index', None)
-                final = cfg.run_l4(l1_data, l3_results, target_time_index)
+                final = cfg.run_l4(l1_data, l3_results)
                 if final is None:
                     st.info("L4 fusion not configured (l4_algorithm is null)")
                     log("[L4] Skipped - no algorithm configured")

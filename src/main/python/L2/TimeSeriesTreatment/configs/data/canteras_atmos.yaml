@@ -1,0 +1,154 @@
+dataset_name: canteras_atmos
+
+variables:
+
+  temperatura_interior:
+    semantic: instantaneous
+  temperatura:
+    semantic: instantaneous
+  sensacion_termica:
+    semantic: instantaneous
+  punto_de_rocio_interior:
+    semantic: instantaneous
+  punto_de_rocio:
+    semantic: instantaneous
+  indice_de_calor_interior:
+    semantic: instantaneous
+  indice_de_calor:
+    semantic: instantaneous
+  humedad_interior:
+    semantic: instantaneous
+  humedad:
+    semantic: instantaneous
+  rafaga_maxima_de_viento:
+    semantic: max_signal
+  velocidad_media_del_viento:
+    semantic: instantaneous
+  direccion_media_del_viento:
+    semantic: circular
+  presion_atmosferica:
+    semantic: instantaneous
+  lluvia:
+    semantic: cumulative
+  evapotranspiracion:
+    semantic: cumulative
+  intensidad_de_lluvia:
+    semantic: instantaneous
+  radiacion_solar:
+    semantic: instantaneous
+  indice_uv:
+    semantic: instantaneous
+
+resample:
+  freq: "10min"
+
+  default_by_semantic:
+    instantaneous: mean
+    cumulative: last
+    max_signal: max
+    circular: circular_mean
+    state: first
+    categorical: first
+
+  override: {}
+
+
+outliers:
+  enabled: true
+  write_flags: true
+  window: 12
+  threshold: 8.0
+  noise_floor: 0.5
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+    max_signal:
+      enabled: true
+    cumulative:
+      enabled: false
+    circular:
+      enabled: false
+    state:
+      enabled: false
+    categorical:
+      enabled: false
+
+  override:
+    humedad:
+      noise_floor: 2.0
+    humedad_interior:
+      noise_floor: 2.0
+    rafaga_maxima_de_viento:
+      noise_floor: 1.0
+    velocidad_media_del_viento:
+      noise_floor: 0.8
+
+
+interpolation:
+  enabled: true
+  write_flags: true
+  max_gap: "1h"
+
+  by_semantic:
+    instantaneous: linear
+    max_signal: linear
+    cumulative: forward_fill
+    circular: forward_fill
+    state: forward_fill
+    categorical: forward_fill
+
+  override: {}
+
+
+features:
+  enabled: true
+
+  pipelines:
+    - diff
+
+  diff:
+    suffix: "diff"
+    variables:
+      - temperatura
+      - humedad
+      - presion_atmosferica
+      - velocidad_media_del_viento
+      - radiacion_solar
+      - indice_uv
+
+smoothing:
+  enabled: true
+  window: 6
+  min_valid: 4
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+      method: mean
+    max_signal:
+      method: median
+    cumulative:
+      enabled: false
+    circular:
+      enabled: false
+    state:
+      enabled: false
+    categorical:
+      enabled: false
+
+  override: {}
+
+
+normalization:
+  enabled: true
+
+  by_semantic:
+    instantaneous: minmax
+    max_signal: minmax
+    cumulative: none
+    circular: none
+    state: none
+    categorical: none
+
+  override: {}

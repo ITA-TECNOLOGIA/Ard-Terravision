@@ -4,9 +4,6 @@ import unicodedata
 import glob
 import pandas as pd
 import xarray as xr
-from dotenv import load_dotenv
-
-load_dotenv()
 
 SENSOR_COORDINATES = {
     #### NEW ####
@@ -22,15 +19,14 @@ SENSOR_COORDINATES = {
     "18704C66":(689055.305, 4174823.136, 209.062),
     "164020A0":(688950.655, 4174953.163, 211.765), #GATEWAY LOS CEPOS
 
-    #### OLD #### -> Yet to be geolocated
-    "16222309": (0,0,0),
-    "16221F19": (0,0,0),
-    "16221F12": (0,0,0),
-    "16221D04": (0,0,0),
-    "16221F59": (0,0,0),
-    "16221EFA": (0,0,0),
-    "16221E6C": (0,0,0),
-    "16221F10": (0,0,0),
+    "16222309": (667299.385,4162669.941,252.668),
+    "16221F19": (667280.590,4162671.903,252.254),
+    "16221F12": (667294.134,4162647.590,252.374),
+    "16221D04": (667272.154,4162650.206,251.201),
+    "16221F59": (688950.527,4174961.024,211.970),
+    "16221EFA": (685950.642,4174953.175,211.765),
+    "16221E6C": (688950.821,4174948.136,211.284),
+    "16221F10": (688950.815,4174968.052,212.537),
 
 }
 def safe_name(s: str) -> str:
@@ -40,7 +36,8 @@ def safe_name(s: str) -> str:
     return s
 
 # files (adjust path/pattern)
-data_path = os.getenv("THARSIS_TILT_DATA_PATH")
+data_path = "/datassd/proyectos/terravision/terravision_sensor_data/tharsis/tilt"
+
 all_files = glob.glob(os.path.join(data_path, "*.csv"))
 data_files = glob.glob(os.path.join(data_path, "*_data.csv"))
 gateway_files = [f for f in all_files if not f.endswith("_data.csv")]
@@ -86,7 +83,8 @@ ds = ds.assign_coords(
     y=("sensor", [SENSOR_COORDINATES[s][1] for s in ds.sensor.values]),
 )
 ds.attrs["crs"] = "EPSG:32629"
-ds.to_netcdf(os.path.join(data_path, "tharsis_tilt.nc"))
+ds.to_netcdf(os.path.join(data_path, "tharsis_tilt_geolocated.nc"))
+
 print("Data:", ds)
 
 ds = xr.Dataset.from_dataframe(gateway)

@@ -16,6 +16,7 @@ import openeo
 from PIL import Image
 from shapely.geometry import mapping
 import xarray as xr
+from typing import List, Optional, Sequence
 
 from L1.L1_Input import L1_Input
 
@@ -24,19 +25,21 @@ load_dotenv()
 class NDWI(L1_Input):
     def __init__(self,
                  use_openeo: bool = True,
-                 start_date: str = None,
-                 end_date: str = None,
-                 shapefile: str = None,
-                 datacube_path: str = None, # must be .nc format
+                 start_date: Optional[str] = None,
+                 end_date: Optional[str] = None,
+                 shapefile: Optional[str] = None,
+                 datacube_path: Optional[str] = None,
+                 time_indices: Optional[List[int]] = None,
                  debug_time_index: int = 7
                  ):
 
         self.spectral_index = self.__class__.__name__
-        self.debug_time_index = debug_time_index
-        
+        self.start_date = start_date
+        self.end_date = end_date
+
+        super().__init__()
 
         if use_openeo:
-            # Variable checks
             if start_date is None:
                 raise ValueError("start_date is required when using openEO")
             if end_date is None:
@@ -49,12 +52,15 @@ class NDWI(L1_Input):
             self.datacube = self._download_datacube(shapefile, start_date, end_date)
             self.datacube_path = None
         else:
-
             logger.info(f"Reading Spectral Index datacube from: {datacube_path}")
             self.datacube_path = datacube_path
-            self.datacube = self._read_datacube(start_date=start_date, end_date=end_date)
+            self.datacube = self._read_datacube(start_date=start_date, end_date=end_date,
+                                                time_indices=time_indices)
 
-        super().__init__()
+        self.time_indices = self._resolve_time_indices(time_indices)
+        self.debug_time_index = debug_time_index
+
+        logger.info(f"Time indices: {self.time_indices}, debug_time_index: {self.debug_time_index}")
         logger.info(f"Loaded datacube with dimensions: {self.datacube.sizes}")
 
     def _download_workflow_spectral_index(self, connection, filename, shape, start_date, end_date):
@@ -122,25 +128,34 @@ class NDWI(L1_Input):
         ds = ds.rename_vars({"var": self.spectral_index})
         return ds
 
-    def _read_datacube(self, start_date, end_date):
+    def _resolve_time_indices(self, time_indices: Optional[List[int]]) -> List[int]:
+        if time_indices is not None and len(time_indices) > 0:
+            return list(time_indices)
+        n_times = self.datacube.sizes.get('t', 0)
+        return list(range(n_times))
+
+    def _read_datacube(self, start_date, end_date, time_indices=None):
         logger.info(f"Opening datacube from {self.datacube_path}")
         ds_full = xr.open_dataset(self.datacube_path)
         logger.info("Datacube opened successfully")
 
-        if start_date is None or end_date is None:
-            logger.info("No dates provided. Using all time indices from input.")
-            self.time_indices = np.arange(ds_full.sizes['t']) # Use all time indices from input.
-        else:
+        if time_indices is not None and len(time_indices) > 0:
+            logger.info(f"Using provided time indices: {time_indices}")
+            resolved_indices = time_indices
+        elif start_date is not None and end_date is not None:
             logger.info(f"Using time indices between {start_date} and {end_date}")
             full_time = ds_full['t'].values
             start_index = np.where(full_time >= np.datetime64(start_date, 'ns'))[0][0]
             end_index = np.where(full_time <= np.datetime64(end_date, 'ns'))[0][-1]
-            self.time_indices = np.arange(start_index, end_index + 1)
+            resolved_indices = list(range(start_index, end_index + 1))
+        else:
+            logger.info("No dates provided. Using all time indices from input.")
+            resolved_indices = list(range(ds_full.sizes['t']))
 
-        datacube_subset = ds_full.isel(t=self.time_indices)
+        datacube_subset = ds_full.isel(t=resolved_indices)
         ds = (datacube_subset['B03'] - datacube_subset['B08']) / (datacube_subset['B03'] + datacube_subset['B08']).to_dataset(name="NDWI")
 
-        print(f"Processed {self.spectral_index} for time index {self.time_indices}")
+        print(f"Processed {self.spectral_index} for time index {resolved_indices}")
         return ds
 
     def _get_array(self, time_index, array_name, dim="band"):
@@ -199,24 +214,8 @@ class NDWI(L1_Input):
     def get_ground_truth(self, time_index: int, band_indices: list[str]): # TODO NOTE GORUND TRUTH IS HARD CODED!!!
         raise NotImplementedError(f"get_ground_truth not implemented for {self.spectral_index}")
 
-    def update_datacube(self, time_index: int, new_values: np.ndarray):
-        # TODO: Check if this is necessary
-        logger.info(f"Updating datacube at time {time_index} for {self.spectral_index}")
-        sample = self.datacube[self.spectral_index]
-        if "t" not in sample.dims:
-            logger.error(f"{self.spectral_index} has no time dimension")
-            raise ValueError(f"{self.spectral_index} does not have a time ('t') dimension.")
-        tsize = sample.sizes['t']
-        if time_index < 0 or time_index >= tsize:
-            logger.error(f"time_index {time_index} out of bounds (0, {tsize-1})")
-            raise ValueError(f"time_index {time_index} is out of bounds for time dimension of size {tsize}.")
-        spatial = [dim for dim in sample.dims if dim != 't']
-        expected_shape = tuple(sample.shape[sample.get_axis_num(d)] for d in spatial)
-        
-        data = self.datacube[self.spectral_index].values
-        data[time_index, :, :] = new_values[:, :, i]
-        self.datacube[self.spectral_index].values = data
-        logger.info("Datacube update completed successfully")
+    def update_datacube(self, time_index: int, band_indices: Sequence[str], new_values: np.ndarray) -> None:
+        raise NotImplementedError("update_datacube is deprecated and will be removed in a future version")
 
     def _normalize_image(self, image):
         logger.debug("Normalizing image to uint8 range")

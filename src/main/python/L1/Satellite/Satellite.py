@@ -11,10 +11,15 @@ import xarray as xr
 import numpy as np
 from PIL import Image
 from logger import logger
+from typing import List, Optional
 
 class Satellite(L1_Input):
     def __init__(self,
-                 datacube_path: str):  # must be .nc format
+                 datacube_path: str,
+                 time_indices: Optional[List[int]] = None,
+                 start_date: Optional[str] = None,
+                 end_date: Optional[str] = None,
+                 debug_time_index: int = 0):
         logger.info(f"Initializing Satellite with datacube: {datacube_path}")
         self.datacube_path = datacube_path
         self.datacube = self._load_datacube()
@@ -24,8 +29,31 @@ class Satellite(L1_Input):
         self.sun_zenith_angles_band = "sunZenithAngles"
         self.view_azimuth_mean_band = "viewAzimuthMean"
         self.view_zenith_mean_band = "viewZenithMean"
+
+        n_times = self.datacube.sizes.get('t', 0)
+
         super().__init__()
+
+        if time_indices is not None and len(time_indices) > 0:
+            self.time_indices = list(time_indices)
+        elif start_date is not None and end_date is not None:
+            self.time_indices = self._resolve_time_indices_from_dates(start_date, end_date)
+        else:
+            self.time_indices = list(range(n_times))
+
+        self.debug_time_index = debug_time_index
+        self.start_date = start_date
+        self.end_date = end_date
+
         logger.info(f"Loaded datacube with dimensions: {self.datacube.sizes}")
+        logger.info(f"Time indices: {self.time_indices}, debug_time_index: {self.debug_time_index}")
+
+    def _resolve_time_indices_from_dates(self, start_date: str, end_date: str) -> List[int]:
+        logger.info(f"Resolving time indices between {start_date} and {end_date}")
+        full_time = self.datacube['t'].values
+        start_idx = np.where(full_time >= np.datetime64(start_date, 'ns'))[0][0]
+        end_idx = np.where(full_time <= np.datetime64(end_date, 'ns'))[0][-1]
+        return list(range(start_idx, end_idx + 1))
 
     def _get_array(self, bands, time_index, array_name, dim="band"):
         logger.debug(f"Selecting array '{array_name}' for bands={bands}, time_index={time_index}")
@@ -44,12 +72,10 @@ class Satellite(L1_Input):
     def get_datacube_subset(self, bands: list[str], time_indices: list[int]):
         logger.debug(f"Subsetting datacube for bands={bands}, time_indices={time_indices}")
         datacube_subset = self.datacube
-        # Select Variables (bands)
         if bands is not None:
             if not isinstance(bands, (list, tuple)):
                 bands = [bands]
             datacube_subset = datacube_subset[bands]
-        # Select coordinates (time)
         if time_indices is not None:
             datacube_subset = datacube_subset.isel(t=time_indices)
         logger.debug(f"Retrieved datacube subset shape: {datacube_subset.coords} and bands: {bands}")
@@ -57,7 +83,7 @@ class Satellite(L1_Input):
 
     def get_debug_image(self):
         logger.info("Generating debug RGB image from sentinel bands")
-        time_index = 0 # TODO NOTE THAT THE DEBUG IMAGE IS HARD CODED TO TIME INDEX 0
+        time_index = self.debug_time_index
         rgb_image = self.get_rgb_image(time_index=time_index)
         rgb_image = np.nan_to_num(rgb_image, nan=0.0)
         img = rgb_image.astype(np.float32)
@@ -85,7 +111,7 @@ class Satellite(L1_Input):
         view_zenith = self._get_array(self.view_zenith_mean_band, time_index, "view_zenith")
         return view_azimuth, view_zenith
 
-    def get_dem(self, time_index: int):  # Digital Elevation Model (similar to depth map)
+    def get_dem(self, time_index: int):
         logger.warning("DEM hardcoded; generating random DEM array")
         image_shape = self.get_image(time_index, ["B01"]).squeeze().shape
         random_array = np.random.randint(0, 100, size=image_shape)
@@ -99,8 +125,7 @@ class Satellite(L1_Input):
         logger.debug(f"Cloud mask generated with shape {mask.shape}")
         return mask
 
-    def get_ground_truth(self, time_index: int, band_indices: list[str]): # TODO NOTE GORUND TRUTH IS HARD CODED!!!
-        #logger.warning("Ground truth timestamp is hardcoded to index 18")
+    def get_ground_truth(self, time_index: int, band_indices: list[str]):
         rgb = self._get_array(band_indices, time_index, "ground_truth_rgb")
         logger.debug(f"Retrieved ground truth array shape {rgb.shape}")
         return rgb

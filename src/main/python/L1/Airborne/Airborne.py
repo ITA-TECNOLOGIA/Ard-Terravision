@@ -29,19 +29,31 @@ class Airborne(L1_Input):
         self,
         path: str,
         hslvl3_project: str,
-        time_indices: Optional[List[int]] = None
+        time_indices: Optional[List[int]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        debug_time_index: int = 0
     ):
         """
         Initialize the Airborne loader.
 
         :param path: Base path to the data folder
         :param hslvl3_project: Project name prefix for hyperspectral files
-        :param time_indices: Optional list of `line` identifiers to filter which files to load
+        :param time_indices: Optional list of `line` identifiers to filter which files to load.
+                             For airborne data this refers to flight-line numbers, not temporal indices.
+        :param start_date: Date-range start (for pipeline-level time config; not used for airborne sensor)
+        :param end_date: Date-range end (for pipeline-level time config; not used for airborne sensor)
+        :param debug_time_index: Time index for debug image (for pipeline-level time config)
         """
         super().__init__()
+
+        self.time_indices = list(time_indices) if time_indices else []
+        self.debug_time_index = debug_time_index
+        self.start_date = start_date
+        self.end_date = end_date
+
         self.path = path
         self.hslvl3_project = hslvl3_project
-        self.time_indices = time_indices
         self.ds = xr.Dataset()
 
         # Load hyperspectral, then images, lidar and thermal (all without padding)

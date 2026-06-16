@@ -10,6 +10,7 @@ import xarray as xr
 # Assuming L3 imports are correct
 from L3.L3_Algorithm import L3_Algorithm, L3_result
 from L3.ChangeDetection.MineNetCD.upernet import UperNetForSemanticSegmentation
+from utils.coords_utils import extract_spatial_coords
 
 load_dotenv()
 
@@ -91,7 +92,8 @@ class ChangeDetectionMineNetCD(L3_Algorithm):
         ])
 
         # --- load model ---
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        DEVICE = os.getenv("DEVICE", "cuda:0")
+        self.device = DEVICE if torch.cuda.is_available() else "cpu"
         print(f"Using device: {self.device}")
         self.model = UperNetForSemanticSegmentation.from_pretrained(self.checkpoint_dir, ignore_mismatched_sizes=True)
         self.model = self.model.to(self.device)
@@ -102,20 +104,30 @@ class ChangeDetectionMineNetCD(L3_Algorithm):
         data_source = l2_datacube if l2_datacube is not None else input
         getter = data_source.get_rgb_image if hasattr(data_source, 'get_rgb_image') else input.get_rgb_image
 
+        default_indices = getattr(self, 'time_indices', [])
+
+        coord_source = l2_datacube if l2_datacube is not None else input
+
         for kwargs in self.args_list:
             time_index_A = kwargs.get("time_index_A")
             time_index_B = kwargs.get("time_index_B")
 
-            if time_index_A is None or time_index_B is None:
-                raise ValueError("Each dictionary in `args_list` must contain 'time_index_A' and 'time_index_B'")
+            if time_index_A is None and default_indices:
+                time_index_A = default_indices[0]
+            if time_index_B is None and default_indices:
+                time_index_B = default_indices[-1]
 
-            # Get images from the input data cube (expected H, W, C, float values)
+            if time_index_A is None or time_index_B is None:
+                raise ValueError(
+                    "Each dictionary in `args_list` must contain 'time_index_A' and 'time_index_B', "
+                    "or time_indices must be injected from L1."
+                )
+
             imageA_np = getter(time_index=time_index_A)
             imageB_np = getter(time_index=time_index_B)
 
             orig_h, orig_w = imageA_np.shape[:2]
 
-            # Replace NaNs with 0
             imageA_np = np.nan_to_num(imageA_np)
             imageB_np = np.nan_to_num(imageB_np)
 
@@ -133,45 +145,46 @@ class ChangeDetectionMineNetCD(L3_Algorithm):
             imageA_pil = upscale_by_factor(imageA_pil, UPSCALE_ALPHA)
             imageB_pil = upscale_by_factor(imageB_pil, UPSCALE_ALPHA)
 
-            # Apply transformations
-            # The tfs.ToTensor() step handles the conversion from PIL Image to Tensor and 
-            # scales the [0, 255] PIL image data to [0.0, 1.0] Tensor data before Normalize.
             imageA_transformed = self.transform(imageA_pil).unsqueeze(0)
             imageB_transformed = self.transform(imageB_pil).unsqueeze(0)
 
-            # Concatenate images to create the input tensor for the change detection model
             pixel_values = torch.cat([imageA_transformed, imageB_transformed], dim=0).to(self.device)
 
-            # Inference
             with torch.no_grad():
                 outputs = self.model(pixel_values=pixel_values)
-                # Apply softmax and argmax to get the predicted change map
                 pred = torch.argmax(torch.nn.functional.softmax(outputs.logits, dim=1), dim=1)
 
-            # Post-process prediction
-            # Scale the prediction map indices (e.g., 0, 1, 2) to a displayable range (0, 255)
-            # This makes the change map visible as a grayscale image.
             pred_map_np = (pred.squeeze().cpu().numpy() * 255).astype(np.uint8)
             pred_map_pil = Image.fromarray(pred_map_np)
             pred_map_pil = pred_map_pil.resize(imageA_original.size, Image.NEAREST)
             pred_map_pil = pred_map_pil.resize((orig_w, orig_h), Image.NEAREST)
 
-            # Create combined debug image
             imageA_display = imageA_pil.resize((orig_w, orig_h), Image.LANCZOS)
             imageB_display = imageB_pil.resize((orig_w, orig_h), Image.LANCZOS)
             w, h = imageA_original.size
 
             debug_image = Image.new("RGB", (w * 3, h))
-
             debug_image.paste(imageA_original, (0, 0))
             debug_image.paste(imageB_original, (w, 0))
             debug_image.paste(pred_map_pil.convert("RGB"), (w * 2, 0))
 
+            spatial_coords = extract_spatial_coords(coord_source, pred_map_np.shape[0], pred_map_np.shape[1])
+            change_map_da = xr.DataArray(
+                pred_map_np,
+                dims=("y", "x"),
+                coords={"y": spatial_coords["y"], "x": spatial_coords["x"]},
+                attrs={
+                    "result_type": "change_map",
+                    "time_index_A": time_index_A,
+                    "time_index_B": time_index_B,
+                },
+            )
+
             results.append(L3_result(
                 debug_image=debug_image,
-                algorithm_results={"change_map": pred_map_np, "time_index_A": time_index_A, "time_index_B": time_index_B},
+                algorithm_results=change_map_da,
                 time_indices=[time_index_A, time_index_B],
-                result_type="change_map"
+                result_type="datacube"
             ))
 
         return results

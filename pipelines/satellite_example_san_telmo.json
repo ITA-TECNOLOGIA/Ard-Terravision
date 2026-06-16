@@ -1,51 +1,61 @@
 {
-    "l1_input": {
-      "type": "Satellite",
+  "l1_input": {
+    "type": "Satellite",
+    "params": {
+      "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_San Telmo_2025-01-01_2025-02-27_batch_with_clouds.nc",
+      "time_indices": [
+        10
+      ],
+      "debug_time_index": 10
+    }
+  },
+  "l2_algorithms": [
+    {
+      "type": "CloudMasking",
       "params": {
-        "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_San Telmo_2025-01-01_2025-02-27_batch_with_clouds.nc"
-      }
-    },
-    "l2_algorithms": [
-      {
-        "type": "CloudMasking",
-        "params": {
-          "time_indices": [10],
-          "rgb_band_names": [["B04", "B03", "B02"]]
-        }
-      }
-    ],
-    "l3_algorithms": [
-      {
-        "type": "LulcClassification",
-        "params": {
-          "time_indices": [467],
-          "write_mask_netcdf": false,
-          "mask_labels": ["lulc"],
-          "var_name": "mask_data",
-          "band_names": ["B02","B03","B04","B08","B05","B06","B07","B8A","B11","B12"],
-          "return_debug_image": true
-        }
-      }
-    ],
-    "l4_algorithm": {
-      "type": "LLaVACustom",
-      "params": {
-        "args_list": [
-          {
-            "time_index": 10
-          }
-        ],
-        "target_time_index": 10,
-        "model_path": null,
-        "model_base": "liuhaotian/llava-v1.5-7b",
-        "conv_mode": null,
-        "temperature": 0.2,
-        "max_new_tokens": 512,
-        "load_8bit": false,
-        "load_4bit": false,
-        "debug": false,
-        "prompt": "Describe the content of the image."
+        "gt_time_index": 10,
+        "rgb_band_names": [
+          [
+            "B04",
+            "B03",
+            "B02"
+          ]
+        ]
       }
     }
+  ],
+  "l3_algorithms": [
+    {
+      "type": "LulcClassification",
+      "params": {
+        "band_names": [
+          "B02",
+          "B03",
+          "B04",
+          "B08",
+          "B05",
+          "B06",
+          "B07",
+          "B8A",
+          "B11",
+          "B12"
+        ],
+        "return_debug_image": true
+      }
+    }
+  ],
+  "l4_algorithm": {
+    "type": "LLaVACustom",
+    "params": {
+      "model_path": null,
+      "model_base": "liuhaotian/llava-v1.5-7b",
+      "conv_mode": null,
+      "temperature": 0.2,
+      "max_new_tokens": 512,
+      "load_8bit": false,
+      "load_4bit": false,
+      "debug": false,
+      "prompt": "Describe the content of the image."
+    }
   }
-  
+}

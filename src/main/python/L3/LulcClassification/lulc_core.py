@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import os
 import math
 import numpy as np
 import torch
@@ -126,7 +127,7 @@ def create_visualization_pil(
     return img
 
 def build_model(net: str, in_channels: int = 10, classes: int = 19, device=None):
-    device = device or torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = device or torch.device(os.getenv("DEVICE", "cuda:0") if torch.cuda.is_available() else "cpu")
 
     if net == "segformer":
         model = smp.Segformer("mit_b4", encoder_weights=None, in_channels=in_channels, classes=classes).to(device)

@@ -1,0 +1,130 @@
+dataset_name: slope_stability_radar
+
+variables:
+  displacement:
+    semantic: instantaneous
+
+resample:
+  freq: "10min"
+
+  default_by_semantic:
+    instantaneous: mean
+    cumulative: last
+    counter: max
+    max_signal: max
+    circular: circular_mean
+    location: median
+    state: first
+    categorical: first
+
+  override:
+    displacement: median
+
+outliers:
+  enabled: true
+  write_flags: true
+  window: 12
+  threshold: 8.0
+  noise_floor: 0.01
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+    counter:
+      enabled: false
+    state:
+      enabled: false
+    categorical:
+      enabled: false
+    cumulative:
+      enabled: false
+    max_signal:
+      enabled: false
+    circular:
+      enabled: false
+    location:
+      enabled: false
+
+  override:
+    displacement:
+      enabled: true
+      window: 18
+      threshold: 8.0
+      noise_floor: 0.02
+
+interpolation:
+  enabled: true
+  write_flags: true
+  max_gap: "30min"
+
+  by_semantic:
+    instantaneous: linear
+    max_signal: linear
+    counter: forward_fill
+    cumulative: forward_fill
+    circular: forward_fill
+    location: forward_fill
+    state: forward_fill
+    categorical: forward_fill
+
+  override:
+    displacement: linear
+
+features:
+  enabled: true
+
+  pipelines:
+    - diff
+
+  diff:
+    suffix: "diff"
+    variables:
+      - displacement
+
+  magnitude:
+    groups: []
+
+smoothing:
+  enabled: true
+  window: 6
+  min_valid: 4
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+      method: median
+    max_signal:
+      enabled: false
+    location:
+      enabled: false
+    counter:
+      enabled: false
+    cumulative:
+      enabled: false
+    circular:
+      enabled: false
+    state:
+      enabled: false
+    categorical:
+      enabled: false
+
+  override:
+    displacement:
+      enabled: true
+      method: median
+
+normalization:
+  enabled: true
+
+  by_semantic:
+    instantaneous: zscore
+    max_signal: none
+    location: none
+    counter: none
+    cumulative: none
+    circular: none
+    state: none
+    categorical: none
+
+  override:
+    displacement: zscore

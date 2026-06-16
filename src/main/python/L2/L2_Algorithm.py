@@ -27,14 +27,13 @@ class L2_Algorithm(ABC):
         super().__init__()
 
     @abstractmethod
-    def process_data(self, input) -> Optional[L2_output]:
+    def process_data(self, l1_inputs: List[Any]) -> Optional[L2_output]:
         """
         Core method to process Level 1 input data and perform L2 operations,
         such as cloud masking, atmospheric correction, or enhancement.
 
         Args:
-            input (L1_Input): An instance of a class implementing L1_Input,
-                              containing the data to be processed.
+            l1_inputs: List of L1_Input instances, containing the data to be processed.
 
         Returns:
             L2_output: Contains the processed datacube, debug image for

@@ -1,0 +1,46 @@
+{
+    "l1_input": {
+        "type": "NumericalData",
+        "params": {
+            "datacube_path": "/datassd/proyectos/terravision/terravision_sensor_data/canteras/canteras_atmos.nc"
+        }
+    },
+    "l2_algorithms": [
+        {
+            "type": "TimeSeriesTreatment",
+            "params": {
+                "sensor_config": "configs/data/canteras_atmos.yaml",
+                "task_config": "configs/tasks/anomaly_detection.yaml"
+            }
+        }
+    ],
+    "l3_algorithms": [
+        {
+            "type": "TimeSeriesAnomalyDetection",
+            "params": {
+                "features": ["temperatura_diff", "humedad_diff", "presion_atmosferica_diff"],
+                "contamination": 0.005,
+                "n_estimators": 200,
+                "view_var": "temperatura",
+                "zscore_detection": {
+                    "enabled": true,
+                    "variables": ["temperatura"],
+                    "window": 50,
+                    "theta": 5.0,
+                    "method": "mad"
+                },
+                "iforest_with_zscore": true,
+                "iforest_without_zscore": true,
+                "window": 50
+            }
+        }
+    ],
+    "l4_algorithm": {
+        "type": "DummyLLaVACustom",
+        "params": [
+            {
+                "time_index": 0
+            }
+        ]
+    }
+}
