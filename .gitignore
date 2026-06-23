@@ -10,3 +10,6 @@ checkpoints/*
 data/examples/*
 Pipeline
 outputs/*
+src/main/docker/ecr_push.sh
+data/*
+CLAUDE.md

@@ -1,14 +1,17 @@
 # 1. Use CUDA-Toolkit “devel” image so cuda_runtime_api.h is available
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04
+FROM nvidia/cuda:12.9.0-devel-ubuntu22.04
 
 # 2. Install Python 3.10, build tools, GDAL system libs, and other native deps
+# UbuntuGIS PPA provides libgdal >= 3.8 required by gdal==3.8.4 Python package
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+      software-properties-common \
+    && add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable \
+    && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
       python3.10 python3.10-dev python3-pip python3-distutils \
       build-essential ninja-build git \
       libjpeg-dev zlib1g-dev libpng-dev \
       libgl1-mesa-glx libglib2.0-dev \
       libsm6 libxext6 libxrender-dev \
-      # --- GDAL native library & headers for Python bindings ---
       libgdal-dev gdal-bin \
     && rm -rf /var/lib/apt/lists/*
 
@@ -48,4 +51,4 @@ RUN pip install --no-build-isolation git+https://github.com/IDEA-Research/Ground
 
 RUN pip install -r src/main/requirements_gpu.txt
 
-CMD ["streamlit", "run", "src/main/python/main_streamlit.py"]
+CMD ["streamlit", "run", "src/main/python/main_streamlit_v2.py"]
