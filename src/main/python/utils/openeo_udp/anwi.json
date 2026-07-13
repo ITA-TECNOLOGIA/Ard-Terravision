@@ -117,9 +117,9 @@
             "result": true
         }
     },
-    "id": "ANWI",
-    "summary": "Calculates the Anomaly Weighted Index (ANWI) from Sentinel-2 data.",
-    "description": "This process calculates the Anomaly Weighted Index (ANWI) from Sentinel-2 data.",
+    "id": "AMWI",
+    "summary": "Calculates the Anomaly Weighted Index (AMWI) from Sentinel-2 data.",
+    "description": "This process calculates the Anomaly Weighted Index (AMWI) from Sentinel-2 data.",
     "parameters": [
         {
             "name": "spatial_extent",

@@ -43,13 +43,13 @@ def bsi_workflow(connection, spatial_extent, temporal_extent):
     bsi = ((b11 + b04) - (b02 + b08)) / ((b11 + b04) + (b02 + b08))
     return bsi
 
-def anwi_workflow(connection, spatial_extent, temporal_extent):
+def amwi_workflow(connection, spatial_extent, temporal_extent):
     bands = ["B02", "B04"]
     input_cube = input_datacube(connection, spatial_extent, temporal_extent, bands)
     b02 = input_cube.band("B02")
     b04 = input_cube.band("B04")
-    anwi = (b04 - b02) / (b04 + b02)
-    return anwi
+    amwi = (b04 - b02) / (b04 + b02)
+    return amwi
 
 def nddi_workflow(connection, spatial_extent, temporal_extent):
     bands = ['B02', 'B12']
