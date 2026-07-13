@@ -1,0 +1,14 @@
+{
+    "bsi": {
+        "description": "This process calculates the Bare Soil Index (BSI) from Sentinel-2 data.",
+        "summary": "Calculates the Bare Soil Index (BSI) from Sentinel-2 data."
+    },
+    "anwi": {
+        "description": "This process calculates the Anomaly Weighted Index (ANWI) from Sentinel-2 data.",
+        "summary": "Calculates the Anomaly Weighted Index (ANWI) from Sentinel-2 data."
+    },
+    "nddi": {
+        "description": "This process calculates the Normalized Difference Drought Index (NDDI) from Sentinel-2 data.",
+        "summary": "Calculates the Normalized Difference Drought Index (NDDI) from Sentinel-2 data."
+    }
+}

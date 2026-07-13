@@ -5,9 +5,7 @@
             "arguments": {
                 "bands": [
                     "B02",
-                    "B04",
-                    "B08",
-                    "B11"
+                    "B04"
                 ],
                 "id": "SENTINEL2_L2A",
                 "spatial_extent": {
@@ -67,7 +65,7 @@
                                 "data": {
                                     "from_parameter": "data"
                                 },
-                                "index": 3
+                                "index": 1
                             }
                         },
                         "arrayelement2": {
@@ -76,7 +74,18 @@
                                 "data": {
                                     "from_parameter": "data"
                                 },
-                                "index": 1
+                                "index": 0
+                            }
+                        },
+                        "subtract1": {
+                            "process_id": "subtract",
+                            "arguments": {
+                                "x": {
+                                    "from_node": "arrayelement1"
+                                },
+                                "y": {
+                                    "from_node": "arrayelement2"
+                                }
                             }
                         },
                         "add1": {
@@ -90,79 +99,6 @@
                                 }
                             }
                         },
-                        "arrayelement3": {
-                            "process_id": "array_element",
-                            "arguments": {
-                                "data": {
-                                    "from_parameter": "data"
-                                },
-                                "index": 0
-                            }
-                        },
-                        "arrayelement4": {
-                            "process_id": "array_element",
-                            "arguments": {
-                                "data": {
-                                    "from_parameter": "data"
-                                },
-                                "index": 2
-                            }
-                        },
-                        "add2": {
-                            "process_id": "add",
-                            "arguments": {
-                                "x": {
-                                    "from_node": "arrayelement3"
-                                },
-                                "y": {
-                                    "from_node": "arrayelement4"
-                                }
-                            }
-                        },
-                        "subtract1": {
-                            "process_id": "subtract",
-                            "arguments": {
-                                "x": {
-                                    "from_node": "add1"
-                                },
-                                "y": {
-                                    "from_node": "add2"
-                                }
-                            }
-                        },
-                        "add3": {
-                            "process_id": "add",
-                            "arguments": {
-                                "x": {
-                                    "from_node": "arrayelement1"
-                                },
-                                "y": {
-                                    "from_node": "arrayelement2"
-                                }
-                            }
-                        },
-                        "add4": {
-                            "process_id": "add",
-                            "arguments": {
-                                "x": {
-                                    "from_node": "arrayelement3"
-                                },
-                                "y": {
-                                    "from_node": "arrayelement4"
-                                }
-                            }
-                        },
-                        "add5": {
-                            "process_id": "add",
-                            "arguments": {
-                                "x": {
-                                    "from_node": "add3"
-                                },
-                                "y": {
-                                    "from_node": "add4"
-                                }
-                            }
-                        },
                         "divide1": {
                             "process_id": "divide",
                             "arguments": {
@@ -170,7 +106,7 @@
                                     "from_node": "subtract1"
                                 },
                                 "y": {
-                                    "from_node": "add5"
+                                    "from_node": "add1"
                                 }
                             },
                             "result": true
@@ -181,8 +117,9 @@
             "result": true
         }
     },
-    "id": "BSI",
-    "description": "Generates the BSI workflow.",
+    "id": "ANWI",
+    "summary": "Calculates the Anomaly Weighted Index (ANWI) from Sentinel-2 data.",
+    "description": "This process calculates the Anomaly Weighted Index (ANWI) from Sentinel-2 data.",
     "parameters": [
         {
             "name": "spatial_extent",
