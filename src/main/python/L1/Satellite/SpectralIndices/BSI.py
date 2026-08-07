@@ -74,20 +74,14 @@ class BSI(L1_Input):
             "max-executors": "50"
         }
 
-        bands = ["B02", "B04", "B08", "B11"]
+        public_url = "https://raw.githubusercontent.com/ITA-TECNOLOGIA/Ard-Terravision/b848749026d3397cd89969e549712e21e992d4a7/src/main/python/utils/openeo_udp/bsi.json"
         # Define datacube
-        datacube = connection.load_collection(
-        "SENTINEL2_L2A",
-        spatial_extent=shape,
-        temporal_extent=[start_date, end_date],
-        bands=bands
-        )
-        # Compute BSI
-        b02 = datacube.band("B02")
-        b04 = datacube.band("B04")
-        b08 = datacube.band("B08")
-        b11 = datacube.band("B11")
-        bsi = ((b11 + b04) - (b02 + b08)) / ((b11 + b04) + (b02 + b08))
+        bsi = connection.datacube_from_process(
+                "BSI", 
+                namespace=public_url,
+                temporal_extent=[start_date, end_date],
+                spatial_extent=shape,
+            )
 
         job = bsi.execute_batch(
             filename,

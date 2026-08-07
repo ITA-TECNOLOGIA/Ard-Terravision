@@ -88,8 +88,22 @@ class NDVI(L1_Input):
         temporal_extent=[start_date, end_date],
         bands=bands
         )
+        # load the SCL band for cloud masking
+        scl = connection.load_collection(
+                "SENTINEL2_L2A",
+                spatial_extent=shape,
+                temporal_extent=[start_date, end_date],
+                bands=["SCL"]
+                )
+        # create a masking layer using scl band to mask clouds and shadows (SCL values 3, 8, 9, 10, 11)
+        mask = scl.process(
+                "to_scl_dilation_mask", 
+                data=scl
+            )
+            
+        masked_cube = datacube.mask(mask)
         # Compute NDVI
-        ndvi = (datacube.band("B08") - datacube.band("B04")) / (datacube.band("B08") + datacube.band("B04"))
+        ndvi = masked_cube.ndvi(red="B04", nir="B08")
 
         job = ndvi.execute_batch(
             filename,

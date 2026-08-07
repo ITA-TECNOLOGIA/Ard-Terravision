@@ -74,17 +74,14 @@ class NDDI(L1_Input):
             "max-executors": "50"
         }
 
-        bands = ['B02', 'B12']
+        public_url = "https://raw.githubusercontent.com/ITA-TECNOLOGIA/Ard-Terravision/b848749026d3397cd89969e549712e21e992d4a7/src/main/python/utils/openeo_udp/nddi.json"
         # Define datacube
-        datacube = connection.load_collection(
-        "SENTINEL2_L2A",
-        spatial_extent=shape,
-        temporal_extent=[start_date, end_date],
-        bands=bands
-        )
-        # Compute NDDI
-        nddi = (datacube.band("B12") - datacube.band("B02")) / (datacube.band("B12") + datacube.band("B02"))
-
+        nddi = connection.datacube_from_process(
+                "NDDI",
+                namespace=public_url,
+                temporal_extent=[start_date, end_date],
+                spatial_extent=shape,
+            )
         job = nddi.execute_batch(
             filename,
             title=f"Download field {self.spectral_index} data of {shape} for the period {start_date} to {end_date}",

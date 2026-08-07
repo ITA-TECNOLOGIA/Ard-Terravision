@@ -13,6 +13,7 @@ import matplotlib.cm as cm
 import matplotlib.colors as colors
 import numpy as np
 import openeo
+from openeo.extra.spectral_indices import compute_indices
 from PIL import Image
 from shapely.geometry import mapping
 import xarray as xr
@@ -82,9 +83,25 @@ class NDCI(L1_Input):
         temporal_extent=[start_date, end_date],
         bands=bands
         )
+        # scl layer is used to mask clouds and shadows
+        scl = connection.load_collection(
+        "SENTINEL2_L2A",
+        spatial_extent=shape,
+        temporal_extent=[start_date, end_date],
+        bands=["SCL"]
+        )
+        # create a mask
+        mask = scl.process(
+                "to_scl_dilation_mask", 
+                data=scl
+            )
+            
+        masked_cube = datacube.mask(mask)
         # Compute NDCI
-        ndci = (datacube.band("B05") - datacube.band("B04")) / (datacube.band("B05") + datacube.band("B04"))
-
+        ndci = compute_indices(
+            datacube=masked_cube,
+            indices=["NDCI"]
+        )
         job = ndci.execute_batch(
             filename,
             title=f"Download field {self.spectral_index} data of {shape} for the period {start_date} to {end_date}",
