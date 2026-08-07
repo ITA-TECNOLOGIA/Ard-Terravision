@@ -1,11 +1,11 @@
 {
     "bsi": {
-        "description": "This process calculates the Bare Soil Index (BSI) from Sentinel-2 data.",
+        "description": "The Bare Soil Index (BSI) process uses Sentinel-2 imagery to identify patches of land that are bare (exposed soil) versus those covered by vegetation. It works by combining four different bands of light captured by the satellite: blue (B02), red (B04), near-infrared (B08), and shortwave infrared (B11), using the formula: \n $$BSI = ((B11 + B04) - (B02 + B08)) / ((B11 + B04) + (B02 + B08))$$. Bare soil and vegetation reflect these different wavelengths of light in distinct ways, healthy plants strongly reflect near-infrared light and absorb red and blue light, while bare soil reflects red and shortwave infrared light more evenly and lacks the strong near-infrared signature of plants. By comparing the combined red and shortwave-infrared signal against the combined blue and near-infrared signal, and then scaling the result so it always falls between -1 and 1, BSI produces a value that is easy to compare across different fields, dates, and lighting conditions. In general, higher (more positive) BSI values indicate bare or exposed soil, such as freshly plowed fields, fallow land, or areas with sparse crop cover, while lower (more negative) values indicate healthy, dense vegetation. This makes BSI especially useful in agriculture for monitoring field conditions, tracking planting and harvest cycles, detecting soil erosion, or identifying areas that may need attention before the next growing season.",
         "summary": "Calculates the Bare Soil Index (BSI) from Sentinel-2 data."
     },
-    "anwi": {
-        "description": "This process calculates the Anomaly Weighted Index (ANWI) from Sentinel-2 data.",
-        "summary": "Calculates the Anomaly Weighted Index (ANWI) from Sentinel-2 data."
+    "amwi": {
+        "description": "The Anomaly Weighted Index (AMWI) from Sentinel-2 imagery to identify areas that deviate from their expected spectral behaviour. AMWI highlights potential anomalies related to vegetation stress, crop damage, land degradation, environmental disturbances, flooding impacts, and other surface changes. In other words, it compares red and blue light reflected from the ground to highlight areas that stand out from their surroundings, such as dust, smoke, algae blooms, or unusual land surfaces, making it easier to spot potential anomalies at a glance.\n\n- **Positive AMWI values** indicate surfaces where red reflectance dominates over blue (e.g. vegetated or soil-dominated areas, or scenes with reduced blue-band scattering).\n- **Negative AMWI values** indicate surfaces or conditions where blue reflectance dominates (e.g. water bodies, shadow, haze/aerosol-affected pixels, or certain built-up materials).\n- **Values near zero** suggest a balanced red-blue response, typical of neutral or mixed surfaces.",
+        "summary": "Calculates the Anomaly Weighted Index (AMWI) from Sentinel-2 data."
     },
     "nddi": {
         "description": "This process calculates the Normalized Difference Drought Index (NDDI) from Sentinel-2 data.",
