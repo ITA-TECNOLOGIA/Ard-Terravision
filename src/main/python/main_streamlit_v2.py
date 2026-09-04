@@ -94,7 +94,33 @@ def display_l3_results(l3_results: list):
 
             alg_results = getattr(result, 'algorithm_results', None)
             if alg_results is not None:
-                display_algorithm_details([alg_results])
+                if isinstance(alg_results, dict) and "anomaly_tables" in alg_results:
+                    display_anomaly_tables(alg_results)
+                else:
+                    display_algorithm_details([alg_results])
+
+def display_anomaly_tables(alg_results: dict):
+    """Render anomaly detection tables: sensor – timestamp – value."""
+    anomaly_tables = alg_results.get("anomaly_tables", {})
+    if not anomaly_tables:
+        return
+
+    st.markdown("### Anomaly Details")
+
+    method_labels = {
+        "zscore": "Rolling Z-Score",
+        "iforest_no_zscore": "Isolation Forest (no z-score)",
+        "iforest_with_zscore": "Isolation Forest (with z-score)",
+    }
+
+    for method_key, df in anomaly_tables.items():
+        label = method_labels.get(method_key, method_key)
+        st.markdown(f"**{label}** — {len(df)} anomaly point(s)")
+        if not df.empty:
+            cols_to_show = [c for c in ["sensor", "time", "variable", "zscore", "anomaly_score"] if c in df.columns]
+            st.dataframe(df[cols_to_show], use_container_width=True)
+        else:
+            st.info("No anomalies detected.")
 
 def display_algorithm_details(items):
     """

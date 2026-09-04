@@ -195,11 +195,12 @@ def save_l3_result(result: Any, algorithm_obj: Any, time_index: Optional[int] = 
                 )
 
     if result.debug_image is not None:
+        image_to_save = result.visual_output if result.visual_output is not None else result.debug_image
         debug_filename = f"debug_{timestamp}.png"
         if time_index is not None:
             debug_filename = f"debug_time_{time_index}_{timestamp}.png"
         debug_path = build_output_path(algorithm_obj, debug_filename)
-        save_image(result.debug_image, debug_path)
+        save_image(image_to_save, debug_path)
 
 
 def save_l4_result(results: Union[List[str], Any], algorithm_obj: Any) -> None:

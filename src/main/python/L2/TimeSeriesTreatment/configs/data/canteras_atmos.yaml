@@ -2,41 +2,41 @@ dataset_name: canteras_atmos
 
 variables:
 
-  temperatura_interior:
+  indoor_temperature:
     semantic: instantaneous
-  temperatura:
+  temperature:
     semantic: instantaneous
-  sensacion_termica:
+  apparent_temperature:
     semantic: instantaneous
-  punto_de_rocio_interior:
+  indoor_dew_point_temperature:
     semantic: instantaneous
-  punto_de_rocio:
+  dew_point_temperature:
     semantic: instantaneous
-  indice_de_calor_interior:
+  indoor_heat_index:
     semantic: instantaneous
-  indice_de_calor:
+  heat_index:
     semantic: instantaneous
-  humedad_interior:
+  indoor_humidity:
     semantic: instantaneous
-  humedad:
+  humidity:
     semantic: instantaneous
-  rafaga_maxima_de_viento:
+  wind_gust_speed:
     semantic: max_signal
-  velocidad_media_del_viento:
+  wind_mean_speed:
     semantic: instantaneous
-  direccion_media_del_viento:
+  wind_direction:
     semantic: circular
-  presion_atmosferica:
+  air_pressure:
     semantic: instantaneous
-  lluvia:
+  precipitation:
     semantic: cumulative
-  evapotranspiracion:
+  evapotranspiration:
     semantic: cumulative
-  intensidad_de_lluvia:
+  precipitation_rate:
     semantic: instantaneous
-  radiacion_solar:
+  solar_radiation:
     semantic: instantaneous
-  indice_uv:
+  uv_index:
     semantic: instantaneous
 
 resample:
@@ -110,12 +110,12 @@ features:
   diff:
     suffix: "diff"
     variables:
-      - temperatura
-      - humedad
-      - presion_atmosferica
-      - velocidad_media_del_viento
-      - radiacion_solar
-      - indice_uv
+      - temperature
+      - humidity
+      - air_pressure
+      - wind_mean_speed
+      - solar_radiation
+      - uv_index
 
 smoothing:
   enabled: true

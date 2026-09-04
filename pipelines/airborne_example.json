@@ -4,7 +4,7 @@
         "params": {
             "path": "/datassd/proyectos/terravision/terravision_airborne/sp202402",
             "hslvl3_project": "sp3",
-            "time_indices": [
+            "flight_lines": [
                 2
             ]
         }

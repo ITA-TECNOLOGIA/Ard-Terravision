@@ -1,0 +1,31 @@
+{
+    "l1_input": {
+        "type": "Satellite",
+        "params": {
+            "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_Tharsis_2017-02-01_2017-03-31_batch_with_clouds.nc",
+            "time_indices": [4,100],
+            "debug_time_index": 4
+        }
+    },
+    "l2_algorithms": [],
+    "l3_algorithms": [],
+    "l4_algorithm": {
+        "type": "QwenCustom",
+        "params": {
+            "args_list": [
+                {
+                    "time_index": 4
+                }
+            ],
+            "base_model": "Qwen/Qwen2.5-VL-7B-Instruct",
+            "lora_checkpoint": null,
+            "torch_dtype": "float16",
+            "device_map": "auto",
+            "temperature": 0.2,
+            "max_new_tokens": 512,
+            "debug": false,
+            "prompt": "Describe the content of the image.",
+            "system_prompt": "You are a helpful assistant specialized in analyzing satellite imagery of mining areas. Your task is to accurately describe visible features, identify relevant infrastructure and land-use patterns, and answer questions based only on the visual evidence present in the image. Avoid speculation, clearly distinguish observations from inferences, and state when the available information is insufficient to answer with confidence."
+        }
+    }
+}

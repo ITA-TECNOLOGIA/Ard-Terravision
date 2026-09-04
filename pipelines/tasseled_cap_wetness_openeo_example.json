@@ -1,0 +1,15 @@
+{
+    "l1_input": {
+        "type": "TasseledCapWetness",
+        "params": {
+            "use_openeo": true,
+            "start_date": "2025-01-01",
+            "end_date": "2025-03-14",
+            "shapefile": "canteras.shp",
+            "debug_time_index": 4
+        }
+    },
+    "l2_algorithms": [],
+    "l3_algorithms": [],
+    "l4_algorithm": null
+}

@@ -126,6 +126,8 @@ class AMWI(L1_Input):
         # Read the datacube
         ds = xr.open_dataset(filename)
         ds = ds.rename_vars({"var": self.spectral_index})
+        ds = ds.where(np.abs(ds[self.spectral_index]) <= 1)
+        ds = ds.where(np.isfinite(ds[self.spectral_index]))
         return ds
 
     def _resolve_time_indices(self, time_indices: Optional[List[int]]) -> List[int]:
@@ -153,7 +155,10 @@ class AMWI(L1_Input):
             resolved_indices = list(range(ds_full.sizes['t']))
 
         datacube_subset = ds_full.isel(t=resolved_indices)
-        ds = (datacube_subset['B04'] - datacube_subset['B02']) / (datacube_subset['B04'] + datacube_subset['B02']).to_dataset(name="AMWI")
+        amwi = (datacube_subset['B04'] - datacube_subset['B02']) / (datacube_subset['B04'] + datacube_subset['B02'])
+        amwi = amwi.where(np.abs(amwi) <= 1)
+        amwi = amwi.where(np.isfinite(amwi))
+        ds = amwi.to_dataset(name="AMWI")
 
         print(f"Processed {self.spectral_index} for time index {resolved_indices}")
         return ds

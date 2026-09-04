@@ -109,10 +109,12 @@ class LulcClassification(L3_Algorithm):
         self.model = load_checkpoint(self.model, model_path, self.device)
 
     def process_data(self, input, l2_datacube: Optional[xr.Dataset] = None) -> List[L3_result]:
-        out: List[L3_result] = []
+        masks_2d: List[xr.DataArray] = []
 
         data_source = l2_datacube if l2_datacube is not None else input
         coord_source = data_source
+
+        first_debug_img = None
 
         for time_index in self.time_indices:
             print(f"Processing LULC classification for time index {time_index} and bands {self.band_names}")
@@ -120,10 +122,9 @@ class LulcClassification(L3_Algorithm):
             img_3d = get_multiband_frame_from_input(data_source, time_index, self.band_names, fallback_input=input)
             mask = infer_multiband_frame(self.model, self.device, img_3d)
 
-            debug_img = None
-            if self.return_debug_image:
+            if first_debug_img is None and self.return_debug_image:
                 rgb_vis = np.stack([img_3d[2], img_3d[1], img_3d[0]], axis=-1) / 10000.0
-                debug_img = create_visualization_pil(rgb_vis, mask, time_idx=time_index, net=self.net)
+                first_debug_img = create_visualization_pil(rgb_vis, mask, time_idx=time_index, net=self.net)
 
             spatial_coords = extract_spatial_coords(coord_source, mask.shape[0], mask.shape[1])
             mask_da = xr.DataArray(
@@ -138,13 +139,16 @@ class LulcClassification(L3_Algorithm):
                 },
             )
 
-            out.append(
-                L3_result(
-                    debug_image=debug_img,
-                    algorithm_results=mask_da,
-                    time_indices=[time_index],
-                    result_type="datacube",
-                )
-            )
+            masks_2d.append(mask_da)
 
-        return out
+        lulc_datacube = xr.concat(masks_2d, dim="t")
+        lulc_datacube = lulc_datacube.assign_coords(t=self.time_indices)
+
+        return [
+            L3_result(
+                debug_image=first_debug_img,
+                algorithm_results=lulc_datacube,
+                time_indices=list(self.time_indices),
+                result_type="datacube",
+            )
+        ]

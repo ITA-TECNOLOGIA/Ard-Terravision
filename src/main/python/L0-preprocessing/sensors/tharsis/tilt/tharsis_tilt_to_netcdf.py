@@ -4,6 +4,9 @@ import unicodedata
 import glob
 import pandas as pd
 import xarray as xr
+from dotenv import load_dotenv
+
+load_dotenv()
 
 SENSOR_COORDINATES = {
     #### NEW ####
@@ -36,7 +39,7 @@ def safe_name(s: str) -> str:
     return s
 
 # files (adjust path/pattern)
-data_path = "/datassd/proyectos/terravision/terravision_sensor_data/tharsis/tilt"
+data_path = os.getenv("THARSIS_TILT_DATA_PATH")
 
 all_files = glob.glob(os.path.join(data_path, "*.csv"))
 data_files = glob.glob(os.path.join(data_path, "*_data.csv"))
@@ -83,7 +86,7 @@ ds = ds.assign_coords(
     y=("sensor", [SENSOR_COORDINATES[s][1] for s in ds.sensor.values]),
 )
 ds.attrs["crs"] = "EPSG:32629"
-ds.to_netcdf(os.path.join(data_path, "tharsis_tilt_geolocated.nc"))
+ds.to_netcdf(os.path.join(data_path, "tharsis_tilt_geolocated_1.nc"))
 
 print("Data:", ds)
 
@@ -93,6 +96,6 @@ ds = ds.assign_coords(
     y=("sensor", [SENSOR_COORDINATES[s][1] for s in ds.sensor.values]),
 )
 ds.attrs["crs"] = "EPSG:32629"
-ds.to_netcdf(os.path.join(data_path, "tharsis_tilt_gateway.nc"))
+ds.to_netcdf(os.path.join(data_path, "tharsis_tilt_gateway_1.nc"))
 print("Metadata:", ds)
 

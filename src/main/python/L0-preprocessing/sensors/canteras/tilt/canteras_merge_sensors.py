@@ -1,9 +1,14 @@
+import os
 import xarray as xr
 import numpy as np
 import pandas as pd
+from dotenv import load_dotenv
 
-INPUT_NC = "/datassd/proyectos/terravision/terravision_sensor_data/canteras/canteras_tilt.nc"
-OUTPUT_NC = "/datassd/proyectos/terravision/terravision_sensor_data/canteras/canteras_tilt_joined.nc"
+load_dotenv()
+
+DATA_PATH = os.getenv("CANTERAS_TILT_DATA_PATH")
+INPUT_NC = os.path.join(DATA_PATH, "canteras_tilt_historic.nc")
+OUTPUT_NC = os.path.join(DATA_PATH, "canteras_tilt_historic_joined_1.nc")
 
 TAKE_FIRST_SENSOR_VARS = {
     "sensor",

@@ -2,7 +2,7 @@
     "l1_input": {
         "type": "NumericalData",
         "params": {
-            "datacube_path": "/datassd/proyectos/terravision/terravision_sensor_data/ternamag/ternamag_slope_failure.nc"
+            "datacube_path": "/datassd/proyectos/terravision/terravision_sensor_data/ternamag/radar/ternamag_radar.nc"
         }
     },
     "l2_algorithms": [
@@ -18,20 +18,22 @@
         {
             "type": "TimeSeriesAnomalyDetection",
             "params": {
-                "features": ["displacement"],
+                "features": ["displacement_diff"],
+                "view_var": ["displacement"],
                 "contamination": 0.005,
                 "n_estimators": 200,
-                "view_var": "displacement",
                 "zscore_detection": {
-                    "enabled": true,
+                    "enabled": false,
                     "variables": ["displacement"],
+                    "view_var": ["displacement"],
                     "window": 50,
-                    "theta": 5.0,
+                    "theta": 1.0,
                     "method": "mad"
                 },
                 "iforest_with_zscore": true,
                 "iforest_without_zscore": true,
-                "window": 50
+                "window": 50,
+                "show_anomaly_table": true
             }
         }
     ],

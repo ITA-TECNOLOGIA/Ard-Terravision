@@ -72,11 +72,13 @@ class TimeSeriesTreatment(L2_Algorithm):
         self.cfg = _deep_merge(cfg_sensor, cfg_task)
 
     def _create_debug_image(self, ds: xr.Dataset) -> Image.Image:
+        skip_semantics = {"location", "categorical"}
         numeric_vars = [v for v in ds.data_vars 
                         if np.issubdtype(ds[v].dtype, np.number) 
                         and "time" in ds[v].dims
                         and not v.endswith("__was_outlier")
-                        and not v.endswith("__is_interpolated")]
+                        and not v.endswith("__is_interpolated")
+                        and self.cfg.get("variables", {}).get(v, {}).get("semantic", None) not in skip_semantics]
         
         plot_vars = numeric_vars[:min(4, len(numeric_vars))]
         
@@ -94,16 +96,17 @@ class TimeSeriesTreatment(L2_Algorithm):
             da = ds[var]
             if has_sensor_dim:
                 for s_idx in range(n_sensors):
-                    da_s = da.isel(sensor=s_idx)
+                    da_s = da.isel(sensor=s_idx).dropna("time", how="all")
                     sensor_name = str(ds["sensor"].values[s_idx])
                     if len(sensor_name) > 20:
                         sensor_name = sensor_name[:8] + "..." + sensor_name[-8:]
-                    ax.plot(da_s["time"].values, da_s.values, linewidth=0.7,
+                    ax.plot(da_s["time"].values, da_s.values, linewidth=0.7, marker='.', markersize=2,
                             color=cmap(s_idx % 10), label=sensor_name)
                 if n_sensors <= 10:
                     ax.legend(fontsize=6, loc="upper right")
             else:
-                ax.plot(da["time"].values, da.values, linewidth=0.8, color="#1f77b4")
+                da_dropped = da.dropna("time", how="all")
+                ax.plot(da_dropped["time"].values, da_dropped.values, linewidth=0.8, marker='.', markersize=2, color="#1f77b4")
             ax.set_title(var, fontsize=10)
             ax.tick_params(labelsize=8)
             fig.autofmt_xdate(rotation=20, ha="right")

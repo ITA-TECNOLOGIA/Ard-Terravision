@@ -1,10 +1,15 @@
+import os
 import json
 import pandas as pd
 import numpy as np
 import xarray as xr
+from dotenv import load_dotenv
 
-file_path = "/datassd/proyectos/terravision/terravision_sensor_data/canteras/worldsensing_flat.jsonl"
-output_nc = "/datassd/proyectos/terravision/terravision_sensor_data/canteras/canteras_tilt.nc"
+load_dotenv()
+
+data_path = os.getenv("CANTERAS_TILT_DATA_PATH")
+file_path = os.path.join(data_path, "worldsensing_flat_historic.jsonl")
+output_nc = os.path.join(data_path, "canteras_tilt_historic.nc")
 
 rows = []
 with open(file_path, "r") as f:

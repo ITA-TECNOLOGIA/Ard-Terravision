@@ -126,6 +126,8 @@ class NDCI(L1_Input):
         # Read the datacube
         ds = xr.open_dataset(filename)
         ds = ds.rename_vars({"var": self.spectral_index})
+        ds = ds.where(np.abs(ds[self.spectral_index]) <= 1)
+        ds = ds.where(np.isfinite(ds[self.spectral_index]))
         return ds
 
     def _resolve_time_indices(self, time_indices: Optional[List[int]]) -> List[int]:
@@ -153,7 +155,10 @@ class NDCI(L1_Input):
             resolved_indices = list(range(ds_full.sizes['t']))
 
         datacube_subset = ds_full.isel(t=resolved_indices)
-        ds = (datacube_subset['B05'] - datacube_subset['B04']) / (datacube_subset['B05'] + datacube_subset['B04']).to_dataset(name="NDCI")
+        ndci = (datacube_subset['B05'] - datacube_subset['B04']) / (datacube_subset['B05'] + datacube_subset['B04'])
+        ndci = ndci.where(np.abs(ndci) <= 1)
+        ndci = ndci.where(np.isfinite(ndci))
+        ds = ndci.to_dataset(name="NDCI")
 
         print(f"Processed {self.spectral_index} for time index {resolved_indices}")
         return ds

@@ -1,0 +1,20 @@
+{
+    "l1_input": {
+        "type": "LST",
+        "params": {
+            "use_openeo": false,
+            "datacube_path": "/home/sgracia/pro24_0061_terravision_he/data/openeo_downloads/s3_slstr_LST_san_telmo_2016-01-01_2025-12-31.nc",
+            "time_indices": [],
+            "debug_time_index": 3
+        }
+    },
+    "l2_algorithms": [],
+    "l3_algorithms": [],
+    "l4_algorithm": {
+        "type": "DummyLLaVACustom",
+        "params": [
+            {
+            }
+        ]
+    }
+}

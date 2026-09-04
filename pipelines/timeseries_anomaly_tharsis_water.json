@@ -1,0 +1,48 @@
+{
+    "l1_input": {
+        "type": "NumericalData",
+        "params": {
+            "datacube_path": "/datassd/proyectos/terravision/terravision_sensor_data/tharsis/water/tharsis_water.nc"
+        }
+    },
+    "l2_algorithms": [
+        {
+            "type": "TimeSeriesTreatment",
+            "params": {
+                "sensor_config": "configs/data/tharsis_water.yaml",
+                "task_config": "configs/tasks/anomaly_detection.yaml"
+            }
+        }
+    ],
+    "l3_algorithms": [
+        {
+            "type": "TimeSeriesAnomalyDetection",
+            "params": {
+                "features": ["pH_diff", "conductivity_diff", "temperature_diff"],
+                "view_var": ["pH"],
+                "contamination": 0.005,
+                "n_estimators": 200,
+                "zscore_detection": {
+                    "enabled": true,
+                    "variables": ["pH", "conductivity", "temperature"],
+                    "view_var": ["pH"],
+                    "window": 5,
+                    "theta": 5.0,
+                    "method": "mad"
+                },
+                "iforest_with_zscore": true,
+                "iforest_without_zscore": true,
+                "window": 5,
+                "show_anomaly_table": true
+            }
+        }
+    ],
+    "l4_algorithm": {
+        "type": "DummyLLaVACustom",
+        "params": [
+            {
+                "time_index": 0
+            }
+        ]
+    }
+}
