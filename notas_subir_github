@@ -1,0 +1,4 @@
+Se tiene que revisar lo siguiente: 
+- Eliminar del .gitmodules la parte del detrexITA
+- Eliminar del README.md la parte del detrexITA
+- Eliminar el fichero src/main/python/L3/ObjectDetection/ObjectDetectionDetrex.py

@@ -1,0 +1,22 @@
+{
+    "l1_input": {
+        "type": "LST",
+        "params": {
+            "use_openeo": true,
+            "start_date": "2016-01-01",
+            "end_date": "2025-12-31",
+            "shapefile": "san_telmo.shp",
+            "debug_time_index": 3,
+            "valid_pixel_threshold": 70.0
+        }
+    },
+    "l2_algorithms": [],
+    "l3_algorithms": [],
+    "l4_algorithm": {
+        "type": "DummyLLaVACustom",
+        "params": [
+            {
+            }
+        ]
+    }
+}

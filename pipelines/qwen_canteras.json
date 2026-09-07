@@ -19,8 +19,8 @@
             "temperature": 0.2,
             "max_new_tokens": 512,
             "debug": false,
-            "prompt": "Describe the content of the image.",
-            "system_prompt": "You are a helpful assistant that analyzes satellite images."
+            "prompt": "What appears to be happening in this scene?",
+            "system_prompt": "You are a helpful assistant specialized in analyzing satellite imagery of mining areas. Your task is to accurately describe visible features, identify relevant infrastructure and land-use patterns, and answer questions based only on the visual evidence present in the image. Avoid speculation, clearly distinguish observations from inferences, and state when the available information is insufficient to answer with confidence."
         }
     }
 }

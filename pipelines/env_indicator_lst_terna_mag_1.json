@@ -1,0 +1,57 @@
+{
+    "l1_inputs": [
+        {
+            "type": "NDVI",
+            "params": {
+                "use_openeo": false,
+                "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_Terna_mag_1_2015-06-04_2025-12-31_batch.nc",
+                "time_indices": [],
+                "debug_time_index": 3
+            }
+        },
+        {
+            "type": "TasseledCapWetness",
+            "params": {
+                "use_openeo": false,
+                "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_Terna_mag_1_2015-06-04_2025-12-31_batch.nc",
+                "time_indices": [],
+                "debug_time_index": 3
+            }
+        },
+        {
+            "type": "BSI",
+            "params": {
+                "use_openeo": false,
+                "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_Terna_mag_1_2015-06-04_2025-12-31_batch.nc",
+                "time_indices": [],
+                "debug_time_index": 3
+            }
+        },
+        {
+            "type": "LST",
+            "params": {
+                "use_openeo": false,
+                "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_slstr/s3_slstr_LST_terna_mag_1_2016-01-01_2025-12-31.nc",
+                "time_indices": [],
+                "debug_time_index": 3
+            }
+        }
+    ],
+    "l2_algorithms": [
+        {
+            "type": "SpectralIndexFusion",
+            "params": {
+                "temporal_alignment_tolerance": "3D",
+                "spatial_alignment": "upsample"
+            }
+        }
+    ],
+    "l3_algorithms": [
+        {
+            "type": "EnvIndicator",
+            "params": {
+                "mask_water_bodies": false
+            }
+        }
+    ]
+}

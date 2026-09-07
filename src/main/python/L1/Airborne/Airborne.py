@@ -29,7 +29,7 @@ class Airborne(L1_Input):
         self,
         path: str,
         hslvl3_project: str,
-        time_indices: Optional[List[int]] = None,
+        flight_lines: List[int],
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         debug_time_index: int = 0
@@ -39,15 +39,24 @@ class Airborne(L1_Input):
 
         :param path: Base path to the data folder
         :param hslvl3_project: Project name prefix for hyperspectral files
-        :param time_indices: Optional list of `line` identifiers to filter which files to load.
-                             For airborne data this refers to flight-line numbers, not temporal indices.
+        :param flight_lines: Flight-line numbers to load (airborne data is
+                             single-acquisition, so these filter which flight
+                             paths to include, not temporal slices).
         :param start_date: Date-range start (for pipeline-level time config; not used for airborne sensor)
         :param end_date: Date-range end (for pipeline-level time config; not used for airborne sensor)
         :param debug_time_index: Time index for debug image (for pipeline-level time config)
         """
         super().__init__()
 
-        self.time_indices = list(time_indices) if time_indices else []
+        if not flight_lines:
+            raise ValueError(
+                "`flight_lines` is required for Airborne — "
+                "specify which flight-line numbers to load (e.g., [2])"
+            )
+
+        self.flight_lines = list(flight_lines)
+        # Airborne is a single-acquisition sensor — always exactly one time step
+        self.time_indices = [0]
         self.debug_time_index = debug_time_index
         self.start_date = start_date
         self.end_date = end_date
@@ -86,7 +95,7 @@ class Airborne(L1_Input):
             if project != self.hslvl3_project:
                 tqdm.write(f"  • skip project {project}")
                 continue
-            if self.time_indices and line not in self.time_indices:
+            if self.flight_lines and line not in self.flight_lines:
                 tqdm.write(f"  • skip line {line}")
                 continue
 
@@ -340,17 +349,30 @@ class Airborne(L1_Input):
 
     def get_rgb_image(
         self,
-        airborne_tile: str,
-        max_side: Optional[int] = 1000 # NOTE THAT BY DEFAULT DOES RESIZING
+        airborne_tile: Optional[str] = None,
+        max_side: Optional[int] = 1000,
+        time_index: Optional[int] = None,
+        **kwargs,
     ) -> np.ndarray:
         """
         Return an RGB image array for the specified airborne tile name
         (without file extension) by reading bands 1, 2 and 3 of its .tif.
         If max_side is provided, the longer edge of the output will be
         resized to max_side pixels (preserving aspect ratio).
+
+        `time_index` and `**kwargs` are accepted for compatibility with
+        satellite-oriented L3/L4 callers (they are ignored for airborne).
         """
         folder = os.path.join(self.path, "images", "tiled_ortho")
-        # try the exact .tif
+
+        # L4 may call this as getter(time_index) positionally; if so,
+        # airborne_tile will be an int — fall back to first available tile
+        if airborne_tile is None or not isinstance(airborne_tile, str):
+            tiles = sorted(glob.glob(os.path.join(folder, "*.tif")))
+            if not tiles:
+                raise FileNotFoundError(f"No tiles found in {folder}")
+            airborne_tile = os.path.splitext(os.path.basename(tiles[0]))[0]
+
         tile_file = os.path.join(folder, f"{airborne_tile}.tif")
         if not os.path.exists(tile_file):
             # fallback: case-insensitive or other extension

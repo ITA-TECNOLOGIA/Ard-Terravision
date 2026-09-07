@@ -1,33 +1,45 @@
 import xarray as xr
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import logging
 from sklearn.ensemble import IsolationForest
-from pathlib import Path
 
 logger = logging.getLogger("AnomalyDetection")
 
-def compute_rolling_score(da, window=50, method="zscore", time_dim="time"):
-    da_hist = da.shift({time_dim: 1})
-
+def _compute_rolling_score(da, window=50, method="zscore", time_dim="time"):
     if method == "zscore":
-        center = da_hist.rolling({time_dim: window}, min_periods=window // 2).mean()
-        spread = da_hist.rolling({time_dim: window}, min_periods=window // 2).std()
+        center = da.rolling({time_dim: window}, min_periods=window // 2).mean()
+        spread = da.rolling({time_dim: window}, min_periods=window // 2).std()
     elif method == "mad":
-        center = da_hist.rolling({time_dim: window}, min_periods=window // 2).median()
-        abs_dev = np.abs(da_hist - center)
+        center = da.rolling({time_dim: window}, min_periods=window // 2).median()
+        abs_dev = np.abs(da - center)
         spread = abs_dev.rolling({time_dim: window}, min_periods=window // 2).median()
         spread = spread * 1.4826
     else:
         raise ValueError(f"Unknown method: {method}")
 
-    spread = spread.where(spread > 1e-3, 1e-3)
-    return (da - center) / spread
+    center = center.shift({time_dim: 1})
+    spread = spread.shift({time_dim: 1})
+    scale = np.nanmax(np.abs(da.values))
+    eps = max(np.finfo(float).eps, scale * 1e-6) if np.isfinite(scale) and scale > 0 else np.finfo(float).eps
+    spread = spread.where(spread > eps, eps)
+    z = (da - center) / spread
+    return z.clip(-50, 50)
 
 
-def detect_anomalies(z, theta=4.0):
+def _detect_anomalies(z, theta=4.0):
     return np.abs(z) > theta
+
+
+def _resolve_theta(theta, var, default=4.0):
+    if isinstance(theta, dict):
+        if var in theta:
+            return theta[var]
+        base_var = var[:-5] if var.endswith("_diff") else var
+        if base_var in theta:
+            return theta[base_var]
+        return default
+    return theta
 
 
 def run_zscore_detection(ds, variables, entity_dim="sensor", time_dim="time",
@@ -37,6 +49,8 @@ def run_zscore_detection(ds, variables, entity_dim="sensor", time_dim="time",
     has_entities = entity_dim in ds.dims
 
     for var in variables:
+        var_theta = _resolve_theta(theta, var)
+
         if var not in ds:
             logger.warning(f"[zscore detection] {var} not found in dataset, skipping")
             continue
@@ -48,8 +62,8 @@ def run_zscore_detection(ds, variables, entity_dim="sensor", time_dim="time",
             mask_list = []
             for ent in ds[entity_dim].values:
                 da_ent = da.sel({entity_dim: ent})
-                z_ent = compute_rolling_score(da_ent, window=window, method=method, time_dim=time_dim)
-                mask_ent = detect_anomalies(z_ent, theta)
+                z_ent = _compute_rolling_score(da_ent, window=window, method=method, time_dim=time_dim)
+                mask_ent = _detect_anomalies(z_ent, var_theta)
 
                 z_list.append(z_ent)
                 mask_list.append(mask_ent)
@@ -65,8 +79,8 @@ def run_zscore_detection(ds, variables, entity_dim="sensor", time_dim="time",
             z = xr.concat(z_list, dim=entity_dim).transpose(*da.dims)
             mask = xr.concat(mask_list, dim=entity_dim).transpose(*da.dims)
         else:
-            z = compute_rolling_score(da, window=window, method=method, time_dim=time_dim)
-            mask = detect_anomalies(z, theta)
+            z = _compute_rolling_score(da, window=window, method=method, time_dim=time_dim)
+            mask = _detect_anomalies(z, var_theta)
 
             mask_vals = mask.values if hasattr(mask, "values") else np.asarray(mask)
             z_vals = z.values if hasattr(z, "values") else np.asarray(z)
@@ -83,6 +97,10 @@ def run_zscore_detection(ds, variables, entity_dim="sensor", time_dim="time",
 
         ds_out[f"{var}_zscore"] = z
         ds_out[f"{var}_zscore_anomaly"] = mask.astype(int)
+        ds_out[f"{var}_zscore_anomaly"].attrs["theta"] = var_theta
+
+        n_var_anomalies = int(np.sum(mask.values == 1))
+        logger.info(f"[zscore] {var}: theta={var_theta}, anomalies={n_var_anomalies}")
 
     events_df = pd.concat(all_events, ignore_index=True) if all_events else pd.DataFrame()
     zscore_mask_vars = [v for v in ds_out.data_vars if v.endswith("_zscore_anomaly")]
@@ -134,6 +152,7 @@ def train_and_predict_iforest(ds, features, entity_dim="sensor", time_dim="time"
             if has_entities:
                 df_anom[entity_dim] = str(ent)
             df_anom["anomaly_score"] = scores[anomalies_binary == 1]
+            df_anom["variable"] = ", ".join(features)
             all_events.append(df_anom)
 
     events_df = pd.concat(all_events, ignore_index=True) if all_events else pd.DataFrame()
@@ -142,7 +161,6 @@ def train_and_predict_iforest(ds, features, entity_dim="sensor", time_dim="time"
 
 def compute_zscore_features(ds, base_features, window=50, time_dim="time"):
     new_vars = []
-    eps = 1e-4
 
     for var in base_features:
         if var not in ds.data_vars:
@@ -150,9 +168,12 @@ def compute_zscore_features(ds, base_features, window=50, time_dim="time"):
             continue
 
         da = ds[var]
-        da_hist = da.shift({time_dim: 1})
-        rolling_mean = da_hist.rolling({time_dim: window}, min_periods=window // 2).mean()
-        rolling_std = da_hist.rolling({time_dim: window}, min_periods=window // 2).std()
+        rolling_mean = da.rolling({time_dim: window}, min_periods=window // 2).mean()
+        rolling_std = da.rolling({time_dim: window}, min_periods=window // 2).std()
+        rolling_mean = rolling_mean.shift({time_dim: 1})
+        rolling_std = rolling_std.shift({time_dim: 1})
+        scale = np.nanmax(np.abs(da.values))
+        eps = max(np.finfo(float).eps, scale * 1e-6) if np.isfinite(scale) and scale > 0 else np.finfo(float).eps
         rolling_std = rolling_std.where(rolling_std > eps, eps)
 
         zscore_var = (da - rolling_mean) / rolling_std

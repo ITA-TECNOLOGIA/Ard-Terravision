@@ -8,8 +8,7 @@ __pycache__/
 lightning_logs/*
 checkpoints/*
 data/examples/*
-Pipeline
 outputs/*
+.vscode/*
 src/main/docker/ecr_push.sh
 data/*
-CLAUDE.md

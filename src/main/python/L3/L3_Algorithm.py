@@ -22,6 +22,7 @@ class L3_result:
     algorithm_results: Any
     time_indices: List[int] = field(default_factory=list)
     result_type: str = ""
+    visual_output: Optional[Image.Image] = None
 
 
 class L3_Algorithm(ABC):

@@ -63,7 +63,7 @@ class TestFullPipeline(unittest.TestCase):
 
     def test_pipeline_empty_l2_l3(self):
         """Test pipeline with empty L2 and L3 (just L1 -> L4)."""
-        config_path = "pipelines/qwen_example.json"
+        config_path = "pipelines/qwen_canteras.json"
         pipeline = PipelineConfig.from_json(config_path)
 
         l1 = pipeline.run_l1()

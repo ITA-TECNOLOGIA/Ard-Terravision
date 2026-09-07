@@ -1,0 +1,158 @@
+dataset_name: water_sensors
+
+variables:
+
+  pH:
+    semantic: instantaneous
+
+  conductivity:
+    semantic: instantaneous
+
+  temperature:
+    semantic: instantaneous
+
+  place:
+    semantic: categorical
+
+  x:
+    semantic: location
+
+  y:
+    semantic: location
+
+
+outliers:
+  enabled: true
+  write_flags: true
+  window: 12
+  threshold: 6.0
+  noise_floor: 0.02
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+
+    max_signal:
+      enabled: false
+
+    cumulative:
+      enabled: false
+
+    circular:
+      enabled: false
+
+    location:
+      enabled: false
+
+    state:
+      enabled: false
+
+    categorical:
+      enabled: false
+
+  override:
+    pH:
+      threshold: 6.0
+      noise_floor: 0.01
+
+    conductivity:
+      threshold: 6.0
+      noise_floor: 0.1
+
+    temperature:
+      threshold: 6.0
+      noise_floor: 0.05
+
+
+interpolation:
+  enabled: true
+  write_flags: true
+  max_gap: "1h"
+
+  by_semantic:
+    instantaneous: linear
+    max_signal: linear
+    cumulative: forward_fill
+    circular: forward_fill
+    location: forward_fill
+    state: forward_fill
+    categorical: forward_fill
+
+  override:
+    pH: linear
+    conductivity: linear
+    temperature: linear
+
+
+features:
+  enabled: true
+
+  pipelines:
+    - diff
+    - rolling_stats
+
+  diff:
+    suffix: "diff"
+    variables:
+      - pH
+      - conductivity
+      - temperature
+
+  rolling_stats:
+    window: 6
+    min_valid: 4
+    variables:
+      - pH
+      - conductivity
+      - temperature
+
+
+smoothing:
+  enabled: true
+  window: 6
+  min_valid: 4
+
+  by_semantic:
+    instantaneous:
+      enabled: true
+      method: mean
+
+    max_signal:
+      enabled: false
+
+    location:
+      enabled: false
+
+    categorical:
+      enabled: false
+
+  override:
+    pH:
+      enabled: true
+      method: median
+
+    conductivity:
+      enabled: true
+      method: median
+
+    temperature:
+      enabled: true
+      method: mean
+
+
+normalization:
+  enabled: true
+
+  by_semantic:
+    instantaneous: zscore
+    max_signal: none
+    cumulative: none
+    circular: none
+    location: none
+    state: none
+    categorical: none
+
+  override:
+    pH: zscore
+    conductivity: zscore
+    temperature: zscore

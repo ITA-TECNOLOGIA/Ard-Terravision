@@ -6,7 +6,6 @@ import glob
 
 
 def matlab_datenum_to_datetime(datenum_series):
-    # Excel/Matlab style serial day number
     return pd.to_datetime(datenum_series, unit="D", origin="1899-12-30")
 
 
@@ -16,7 +15,6 @@ def read_sensor_csv(file):
     with open(file, "r", encoding="utf-8", errors="ignore") as f:
         lines = [line.strip() for line in f.readlines()]
 
-    # Buscar línea Time;SENSORNAME
     sensor_name = None
     for line in lines:
         if line.startswith("Time;"):
@@ -25,12 +23,10 @@ def read_sensor_csv(file):
     if sensor_name is None:
         sensor_name = file.stem
 
-    # Extraer coordenadas X/Y/Z
     x_coord = float([l for l in lines if l.startswith("X")][0].split(";")[1])
     y_coord = float([l for l in lines if l.startswith("Y")][0].split(";")[1])
     z_coord = float([l for l in lines if l.startswith("Z")][0].split(";")[1])
 
-    # Buscar inicio de datos numéricos
     start_idx = None
     for i, line in enumerate(lines):
         if ";" in line:
@@ -44,7 +40,7 @@ def read_sensor_csv(file):
                 pass
 
     if start_idx is None:
-        raise ValueError(f"No se encontraron datos numéricos en {file}")
+        raise ValueError(f"No numerical data found in {file}")
 
     data_lines = lines[start_idx:]
 
@@ -69,10 +65,10 @@ def csvs_to_datacube(input_path, output_nc, pattern="*.csv"):
     if input_path.is_dir():
         csv_files = sorted(glob.glob(str(input_path / pattern)))
     else:
-        raise ValueError("input_path debe ser una carpeta que contenga CSVs")
+        raise ValueError("input_path must be a folder containing CSVs")
 
     if len(csv_files) == 0:
-        raise ValueError("No se encontraron CSVs.")
+        raise ValueError("CSV files not found.")
 
     sensor_data = {}
     sensor_coords = {}
@@ -85,11 +81,9 @@ def csvs_to_datacube(input_path, output_nc, pattern="*.csv"):
         sensor_coords[sensor] = (x, y, z)
         all_times.update(df["time"].values)
 
-    # eje temporal global
     times = np.array(sorted(all_times), dtype="datetime64[ns]")
     sensors = sorted(sensor_data.keys())
 
-    # matriz (time, sensor)
     data = np.full((len(times), len(sensors)), np.nan, dtype=float)
 
     time_index = {t: i for i, t in enumerate(times)}
@@ -100,7 +94,6 @@ def csvs_to_datacube(input_path, output_nc, pattern="*.csv"):
             i = time_index[t]
             data[i, j] = val
 
-    # coords por sensor
     xs = np.array([sensor_coords[s][0] for s in sensors], dtype=float)
     ys = np.array([sensor_coords[s][1] for s in sensors], dtype=float)
     zs = np.array([sensor_coords[s][2] for s in sensors], dtype=float)
@@ -120,17 +113,22 @@ def csvs_to_datacube(input_path, output_nc, pattern="*.csv"):
     )
 
     ds["displacement"].attrs["units"] = "mm"
-    ds.attrs["description"] = "Datacube generado desde CSVs de sensores"
+    ds.attrs["description"] = "Datacube generated from sensor CSVs"
     ds.attrs["time_format"] = "dd/mm/YYYY  HH:MM:SS"
 
     ds.to_netcdf(output_nc)
 
-    print(f"Datacube guardado en: {output_nc}")
+    print(f"Datacube saved in: {output_nc}")
     return ds
 
 
 if __name__ == "__main__":
-    input_folder = "/datassd/proyectos/terravision/terravision_sensor_data/ternamag"
-    output_file = "/home/anavarroa/Pipeline/tasks/sensor/timeseries/data/ternamag_radar/ternamag_stability_radar.nc"
+    import os
+    from dotenv import load_dotenv
 
-    csvs_to_datacube(input_folder, output_file)
+    load_dotenv()
+
+    data_path = os.getenv("TERNAMAG_RADAR_DATA_PATH")
+    output_file = os.path.join(data_path, "ternamag_radar.nc")
+
+    csvs_to_datacube(data_path, output_file)

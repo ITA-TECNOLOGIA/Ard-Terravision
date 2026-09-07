@@ -2,7 +2,7 @@
     "l1_input": {
         "type": "NumericalData",
         "params": {
-            "datacube_path": "/datassd/proyectos/terravision/terravision_sensor_data/tharsis/tilt/tharsis_tilt_geolocated.nc"
+            "datacube_path": "/datassd/proyectos/terravision/terravision_demo_data/sensors/tharsis_tilt_input.nc"
         }
     },
     "l2_algorithms": [
@@ -18,20 +18,22 @@
         {
             "type": "TimeSeriesAnomalyDetection",
             "params": {
-                "features": ["x_mm_per_m", "y_mm_per_m", "z_mm_per_m"],
+                "features": ["x_mm_per_m_diff", "y_mm_per_m_diff", "z_mm_per_m_diff", "x_g_diff", "y_g_diff", "z_g_diff"],
+                "view_var": ["x_mm_per_m"],
                 "contamination": 0.005,
                 "n_estimators": 200,
-                "view_var": "x_mm_per_m",
                 "zscore_detection": {
-                    "enabled": true,
-                    "variables": ["x_mm_per_m", "y_mm_per_m", "z_mm_per_m"],
+                    "enabled": false,
+                    "variables": ["x_mm_per_m", "y_mm_per_m", "z_mm_per_m", "x_g", "y_g", "z_g"],
+                    "view_var": ["x_mm_per_m"],
                     "window": 50,
                     "theta": 5.0,
                     "method": "mad"
                 },
                 "iforest_with_zscore": true,
                 "iforest_without_zscore": true,
-                "window": 50
+                "window": 50,
+                "show_anomaly_table": true
             }
         }
     ],

@@ -79,6 +79,9 @@ def get_resample_method(cfg, var, da):
 
 def resample_dataset(ds, cfg):
     res_cfg = cfg.get("resample", {})
+    if not res_cfg:
+        print("=== RESAMPLE: SKIPPED (no resample config) ===")
+        return ds
     freq = res_cfg.get("freq", "10min")
 
     print("=== RESAMPLE ===")

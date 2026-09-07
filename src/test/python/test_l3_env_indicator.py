@@ -41,11 +41,33 @@ class TestL3EnvIndicator(unittest.TestCase):
         self.assertIsInstance(result, L3_result)
         self.assertEqual(result.result_type, "datacube")
 
-        env_datacube = result.algorithm_results
-        self.assertIsInstance(env_datacube, xr.DataArray)
+        result_ds = result.algorithm_results
+        self.assertIsInstance(result_ds, xr.Dataset)
+
+        self.assertIn("environmental_indicator", result_ds.data_vars)
+        self.assertIn("explained_variance_ratio", result_ds.data_vars)
+        self.assertIn("pca_components", result_ds.data_vars)
+        self.assertIn("pca_similarity", result_ds.data_vars)
+
+        env_datacube = result_ds["environmental_indicator"]
         self.assertIn("t", env_datacube.dims)
         self.assertIn("y", env_datacube.dims)
         self.assertIn("x", env_datacube.dims)
+
+        evr = result_ds["explained_variance_ratio"]
+        self.assertIn("t", evr.dims)
+        self.assertIn("pc", evr.dims)
+
+        components = result_ds["pca_components"]
+        self.assertIn("t", components.dims)
+        self.assertIn("pc", components.dims)
+        self.assertIn("feature", components.dims)
+
+        for t_idx in range(evr.sizes["t"]):
+            evr_vals = evr.isel(t=t_idx).values
+            if not np.isnan(evr_vals).all():
+                self.assertGreater(np.nansum(evr_vals), 0.0)
+                self.assertLessEqual(np.nansum(evr_vals), 1.0 + 1e-6)
 
     def test_env_indicator_requires_l2_fusion(self):
         """Test that EnvIndicator raises error when L2 fusion is not provided."""
@@ -71,6 +93,41 @@ class TestL3EnvIndicator(unittest.TestCase):
         self.assertIn("t", l2_output.datacube.dims)
         self.assertIn("y", l2_output.datacube.dims)
         self.assertIn("x", l2_output.datacube.dims)
+
+    def test_pca_sign_consistency(self):
+        """Test that PC1 loadings are consistently oriented across dates."""
+        config_path = "pipelines/env_indicator_example.json"
+        pipeline = PipelineConfig.from_json(config_path)
+
+        l1_data = pipeline.run_l1()
+        l2_output = pipeline.run_l2(l1_data)
+        l3_results = pipeline.run_l3(l1_data, l2_output)
+
+        result_ds = l3_results[0].algorithm_results
+        components = result_ds["pca_components"].values
+
+        n_t = components.shape[0]
+        for t_idx in range(n_t - 1):
+            pc1_a = components[t_idx, 0, :]
+            pc1_b = components[t_idx + 1, 0, :]
+            if np.isnan(pc1_a).any() or np.isnan(pc1_b).any():
+                continue
+            dot = np.dot(pc1_a, pc1_b)
+            self.assertGreater(dot, 0, f"PC1 sign flip between t={t_idx} and t={t_idx + 1}")
+
+    def test_pca_similarity_shape(self):
+        """Test that pca_similarity has correct dimensions."""
+        config_path = "pipelines/env_indicator_example.json"
+        pipeline = PipelineConfig.from_json(config_path)
+
+        l1_data = pipeline.run_l1()
+        l2_output = pipeline.run_l2(l1_data)
+        l3_results = pipeline.run_l3(l1_data, l2_output)
+
+        result_ds = l3_results[0].algorithm_results
+        similarities = result_ds["pca_similarity"]
+        self.assertIn("t", similarities.dims)
+        self.assertIn("pc", similarities.dims)
 
 
 if __name__ == "__main__":

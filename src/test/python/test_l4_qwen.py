@@ -12,7 +12,7 @@ class TestL4Qwen(unittest.TestCase):
 
     def test_qwen_runs_successfully(self):
         """Test that Qwen processes data and returns valid responses."""
-        config_path = "pipelines/qwen_example.json"
+        config_path = "pipelines/qwen_canteras.json"
         pipeline = PipelineConfig.from_json(config_path)
 
         result = pipeline.run()
@@ -23,7 +23,7 @@ class TestL4Qwen(unittest.TestCase):
 
     def test_qwen_returns_strings(self):
         """Test that Qwen returns list of strings."""
-        config_path = "pipelines/qwen_example.json"
+        config_path = "pipelines/qwen_canteras.json"
         pipeline = PipelineConfig.from_json(config_path)
 
         result = pipeline.run()

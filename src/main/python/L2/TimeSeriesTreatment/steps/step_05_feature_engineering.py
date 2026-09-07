@@ -72,6 +72,44 @@ def add_magnitude_features(ds, cfg):
 
     return ds, created
 
+def add_rolling_stats_features(ds, cfg):
+    rs_cfg = cfg.get("features", {}).get("rolling_stats", {})
+    window = rs_cfg.get("window", 6)
+    min_valid = rs_cfg.get("min_valid", window)
+    variables = rs_cfg.get("variables", [])
+
+    created = []
+
+    for var in variables:
+        if var not in ds.data_vars:
+            continue
+
+        da = ds[var]
+        if "time" not in da.dims:
+            continue
+
+        roller = da.rolling(time=window, min_periods=min_valid)
+
+        mean_name = f"{var}_roll_mean"
+        std_name = f"{var}_roll_std"
+
+        ds[mean_name] = roller.mean()
+        ds[std_name] = roller.std()
+
+        ds[mean_name].attrs["feature_type"] = "rolling_stats"
+        ds[mean_name].attrs["source_var"] = var
+        ds[mean_name].attrs["window"] = window
+        ds[mean_name].attrs["stat"] = "mean"
+
+        ds[std_name].attrs["feature_type"] = "rolling_stats"
+        ds[std_name].attrs["source_var"] = var
+        ds[std_name].attrs["window"] = window
+        ds[std_name].attrs["stat"] = "std"
+
+        created.extend([mean_name, std_name])
+
+    return ds, created
+
 def add_geospatial_features(ds, cfg):
     geo_cfg = cfg.get("features", {}).get("geospatial", {})
     coord_sets = geo_cfg.get("coordinate_sets", [])
@@ -225,6 +263,10 @@ def run_feature_engineering(ds, cfg):
 
         elif pipe == "magnitude":
             ds_out, created = add_magnitude_features(ds_out, cfg)
+            all_created.extend(created)
+
+        elif pipe == "rolling_stats":
+            ds_out, created = add_rolling_stats_features(ds_out, cfg)
             all_created.extend(created)
 
         elif pipe == "geospatial":

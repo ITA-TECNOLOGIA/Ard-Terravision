@@ -51,6 +51,9 @@ class PipelineConfig:
         "NDTI":      "L1.Satellite.SpectralIndices.NDTI",
         "NDVI":      "L1.Satellite.SpectralIndices.NDVI",
         "NDWI":      "L1.Satellite.SpectralIndices.NDWI",
+        "TasseledCapGreenness":      "L1.Satellite.Transformations.TasseledCapGreenness",
+        "TasseledCapWetness":      "L1.Satellite.Transformations.TasseledCapWetness",
+        "LST":      "L1.Satellite.LandSurfaceTemperature.LST",
         "CloudMasking":          "L2.CloudMasking.CloudMasking",
         "SpectralIndexFusion":   "L2.SpectralIndexFusion.SpectralIndexFusion",
         "ObjectDetectionDetrex":       "L3.ObjectDetection.ObjectDetectionDetrex",
@@ -257,6 +260,22 @@ class PipelineConfig:
             )
 
         time_config = self._extract_time_config(l1_inputs)
+
+        if l2_datacube is not None and "t" in l2_datacube.dims:
+            l2_n_t = l2_datacube.sizes["t"]
+            ti = time_config["time_indices"]
+            if ti and max(ti) >= l2_n_t:
+                logger.info(
+                    f"L2 datacube has {l2_n_t} timesteps but L1 time_indices "
+                    f"reference up to index {max(ti)} (likely due to temporal "
+                    f"aggregation in L2). Resetting to use all L2 timesteps."
+                )
+                time_config["time_indices"] = []
+            if time_config["debug_time_index"] >= l2_n_t:
+                time_config["debug_time_index"] = 0
+
+        self._validated_time_config = time_config
+
         for alg in self.l3_algorithms:
             self._inject_time_config(alg, time_config)
 
@@ -278,7 +297,10 @@ class PipelineConfig:
                 "before passing to L4."
             )
 
-        time_config = self._extract_time_config(l1_inputs)
+        if hasattr(self, '_validated_time_config'):
+            time_config = self._validated_time_config
+        else:
+            time_config = self._extract_time_config(l1_inputs)
         if self.l4_algorithm:
             self._inject_time_config(self.l4_algorithm, time_config)
 
