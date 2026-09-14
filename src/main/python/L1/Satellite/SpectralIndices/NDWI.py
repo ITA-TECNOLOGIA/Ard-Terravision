@@ -143,7 +143,8 @@ class NDWI(L1_Input):
 
         # Read the datacube
         ds = xr.open_dataset(filename)
-        ds = ds.rename_vars({"var": self.spectral_index})
+        if "var" in ds.data_vars:
+            ds = ds.rename_vars({"var": self.spectral_index})
         ds = ds.where(np.abs(ds[self.spectral_index]) <= 1)
         ds = ds.where(np.isfinite(ds[self.spectral_index]))
         return ds
