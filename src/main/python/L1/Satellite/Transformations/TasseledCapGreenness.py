@@ -123,15 +123,18 @@ class TasseledCapGreenness(L1_Input):
         shapefile_name = shapefile_name.replace(".shp", "")
         filename = os.path.join(output_dir, f"s2_l2a_{self.transformation_name}_{shapefile_name}_{start_date}_{end_date}.nc")
 
-        # define the connection
-        connection = openeo.connect("openeofed.dataspace.copernicus.eu")
-        connection.authenticate_oidc_client_credentials(
-                            client_id=OPENEO_CLIENT_ID,
-                            client_secret=OPENEO_CLIENT_SECRET
-                        )
+        if os.path.exists(filename):
+            logger.info(f"Found cached datacube at {filename}, skipping OpenEO download")
+        else:
+            # define the connection
+            connection = openeo.connect("openeofed.dataspace.copernicus.eu")
+            connection.authenticate_oidc_client_credentials(
+                                client_id=OPENEO_CLIENT_ID,
+                                client_secret=OPENEO_CLIENT_SECRET
+                            )
 
-        self._download_workflow_tct(connection, filename, shape, start_date, end_date)
-        logger.info(f"Downloaded {self.transformation_name} datacube to {filename}")
+            self._download_workflow_tct(connection, filename, shape, start_date, end_date)
+            logger.info(f"Downloaded {self.transformation_name} datacube to {filename}")
 
         # Read the datacube
         ds = xr.open_dataset(filename)

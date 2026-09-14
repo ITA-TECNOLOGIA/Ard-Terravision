@@ -2,7 +2,7 @@
     "l1_input": {
         "type": "Satellite",
         "params": {
-            "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_La Zarza_2025-01-01_2025-04-30_batch_with_clouds.nc",
+            "datacube_path": "/datassd/proyectos/terravision/terravision_satellite_l2a/s2_l2a_La Zarza_2015-06-04_2025-12-31_batch.nc",
             "time_indices": [3, 13, 29],
             "debug_time_index": 13
         }
