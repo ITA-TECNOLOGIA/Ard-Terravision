@@ -74,16 +74,14 @@ class AMWI(L1_Input):
             "max-executors": "50"
         }
 
-        bands = ["B02", "B04"]
+        public_url = "https://raw.githubusercontent.com/ITA-TECNOLOGIA/Ard-Terravision/b848749026d3397cd89969e549712e21e992d4a7/src/main/python/utils/openeo_udp/amwi.json"
         # Define datacube
-        datacube = connection.load_collection(
-        "SENTINEL2_L2A",
-        spatial_extent=shape,
-        temporal_extent=[start_date, end_date],
-        bands=bands
-        )
-        # Compute AMWI
-        amwi = (datacube.band("B04") - datacube.band("B02")) / (datacube.band("B04") + datacube.band("B02"))
+        amwi = connection.datacube_from_process(
+                "AMWI", 
+                namespace=public_url,
+                temporal_extent=[start_date, end_date],
+                spatial_extent=shape,
+            )
 
         job = amwi.execute_batch(
             filename,
@@ -128,7 +126,8 @@ class AMWI(L1_Input):
 
         # Read the datacube
         ds = xr.open_dataset(filename)
-        ds = ds.rename_vars({"var": self.spectral_index})
+        if "var" in ds.data_vars:
+            ds = ds.rename_vars({"var": self.spectral_index})
         ds = ds.where(np.abs(ds[self.spectral_index]) <= 1)
         ds = ds.where(np.isfinite(ds[self.spectral_index]))
         return ds
