@@ -7,8 +7,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATA_PATH = os.getenv("CANTERAS_TILT_DATA_PATH")
-INPUT_NC = os.path.join(DATA_PATH, "canteras_tilt_historic.nc")
-OUTPUT_NC = os.path.join(DATA_PATH, "canteras_tilt_historic_joined_1.nc")
+INPUT_NC = os.path.join(DATA_PATH, "canteras_tilt.nc")
+OUTPUT_NC = os.path.join(DATA_PATH, "canteras_tilt_joined.nc")
+
+# Sensor locations (longitude, latitude, elevation)
+SENSOR_COORDINATES = {
+    "LS-193131": (37.104236, -3.693808, 897.28),  # Base
+    "LS-193132": (37.104393, -3.693153, 899.10),  # Rover I
+    "LS-193195": (37.104286, -3.693017, 913.15),  # Rover II
+}
 
 TAKE_FIRST_SENSOR_VARS = {
     "sensor",
@@ -97,6 +104,18 @@ def main():
 
     ds_out = xr.concat(device_datasets, dim=pd.Index(device_labels, name="device"))
     ds_out = ds_out.rename({"device": "sensor"})
+
+    coords_lower = {k.lower(): v for k, v in SENSOR_COORDINATES.items()}
+    sensor_coords = [
+        coords_lower.get(str(s).lower(), (np.nan, np.nan, np.nan))
+        for s in ds_out.sensor.values
+    ]
+    ds_out = ds_out.assign_coords(
+        x=("sensor", [c[0] for c in sensor_coords]),
+        y=("sensor", [c[1] for c in sensor_coords]),
+        z=("sensor", [c[2] for c in sensor_coords]),
+    )
+    ds_out.attrs["crs"] = "EPSG:4326"
     ds_out.to_netcdf(OUTPUT_NC)
     print(f"\nOK -> saved on {OUTPUT_NC}")
     print("Final dims:", ds_out.dims)

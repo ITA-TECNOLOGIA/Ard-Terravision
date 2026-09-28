@@ -2,7 +2,7 @@
     "l1_input": {
         "type": "NumericalData",
         "params": {
-            "datacube_path": "/datassd/proyectos/terravision/terravision_demo_data/sensors/tharsis_tilt_input.nc"
+            "datacube_path": "/datassd/proyectos/terravision/terravision_sensor_data/tharsis/tilt/tharsis_tilt_geolocated.nc"
         }
     },
     "l2_algorithms": [

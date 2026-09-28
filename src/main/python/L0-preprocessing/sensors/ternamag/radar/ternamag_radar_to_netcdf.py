@@ -4,6 +4,9 @@ import pandas as pd
 import xarray as xr
 import glob
 
+# Radar location (GGRS87 / Greek Grid (EPSG:2100))
+X = 2018762.439
+Y = 2665834.883
 
 def matlab_datenum_to_datetime(datenum_series):
     return pd.to_datetime(datenum_series, unit="D", origin="1899-12-30")
@@ -94,8 +97,6 @@ def csvs_to_datacube(input_path, output_nc, pattern="*.csv"):
             i = time_index[t]
             data[i, j] = val
 
-    xs = np.array([sensor_coords[s][0] for s in sensors], dtype=float)
-    ys = np.array([sensor_coords[s][1] for s in sensors], dtype=float)
     zs = np.array([sensor_coords[s][2] for s in sensors], dtype=float)
 
     ds = xr.Dataset(
@@ -106,15 +107,19 @@ def csvs_to_datacube(input_path, output_nc, pattern="*.csv"):
         coords={
             "time": times,
             "sensor": sensors,
-            "sensor_x": ("sensor", xs),
-            "sensor_y": ("sensor", ys),
-            "sensor_z": ("sensor", zs),
+            "z": ("sensor", zs),
         }
+    )
+
+    ds = ds.assign_coords(
+        x=("sensor", np.full(len(sensors), X)),
+        y=("sensor", np.full(len(sensors), Y)),
     )
 
     ds["displacement"].attrs["units"] = "mm"
     ds.attrs["description"] = "Datacube generated from sensor CSVs"
     ds.attrs["time_format"] = "dd/mm/YYYY  HH:MM:SS"
+    ds.attrs["crs"] = "EPSG:4326"
 
     ds.to_netcdf(output_nc)
 

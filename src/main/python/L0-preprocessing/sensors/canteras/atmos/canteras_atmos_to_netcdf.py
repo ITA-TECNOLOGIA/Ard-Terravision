@@ -8,6 +8,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Station location (WGS84 (EPSG:4326))
+LONGITUDE = 37.104194  # deg E
+LATITUDE = -3.693636  # deg N
+ELEVATION = 897.88  # m
+
 def safe_name(s: str) -> str:
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")  # remove accents
     s = s.replace("/", "_per_")  # fix slashes
@@ -59,5 +64,11 @@ data = data[~data.index.duplicated(keep="last")]  # remove overlaps if any
 # 3) to NetCDF
 ds = xr.Dataset.from_dataframe(data)
 ds = ds.rename_vars(VARIABLE_RENAME_MAP)
-ds.to_netcdf(os.path.join(data_path, "canteras_atmos_2.nc"))
+ds = ds.assign_coords(
+    x=LONGITUDE,
+    y=LATITUDE,
+    z=ELEVATION,
+)
+ds.attrs["crs"] = "EPSG:4326"
+ds.to_netcdf(os.path.join(data_path, "canteras_atmos.nc"))
 print(ds)
