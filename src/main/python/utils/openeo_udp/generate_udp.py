@@ -12,30 +12,28 @@ import openeo
 from openeo.api.process import Parameter
 from openeo.rest.udp import build_process_dict
 
-def input_datacube(connection, spatial_extent, temporal_extent, bands):
+def s2_datacube(connection, spatial_extent, temporal_extent, bands):
     s2_cube = connection.load_collection(
         "SENTINEL2_L2A",
         spatial_extent=spatial_extent,
         temporal_extent=temporal_extent,
         bands=bands
     )
+    return s2_cube
+
+def scl_cube(connection, spatial_extent, temporal_extent):
     scl = connection.load_collection(
         "SENTINEL2_L2A",
         spatial_extent=spatial_extent,
         temporal_extent=temporal_extent,
         bands=["SCL"]
     )
-    mask = scl.process(
-        "to_scl_dilation_mask", 
-        data=scl
-    )
-    
-    masked_cube = s2_cube.mask(mask) 
-    return masked_cube
+    cloud_mask =  ((scl.band("SCL") == 8) | (scl.band("SCL") == 9) | (scl.band("SCL") == 10))    
+    return cloud_mask
 
 def bsi_workflow(connection, spatial_extent, temporal_extent):
     bands = ["B02", "B04", "B08", "B11"]
-    input_cube = input_datacube(connection, spatial_extent, temporal_extent, bands)
+    input_cube = s2_datacube(connection, spatial_extent, temporal_extent, bands)
     b02 = input_cube.band("B02")
     b04 = input_cube.band("B04")
     b08 = input_cube.band("B08")
@@ -45,7 +43,7 @@ def bsi_workflow(connection, spatial_extent, temporal_extent):
 
 def amwi_workflow(connection, spatial_extent, temporal_extent):
     bands = ["B02", "B04"]
-    input_cube = input_datacube(connection, spatial_extent, temporal_extent, bands)
+    input_cube = s2_datacube(connection, spatial_extent, temporal_extent, bands)
     b02 = input_cube.band("B02")
     b04 = input_cube.band("B04")
     amwi = (b04 - b02) / (b04 + b02)
@@ -53,7 +51,7 @@ def amwi_workflow(connection, spatial_extent, temporal_extent):
 
 def nddi_workflow(connection, spatial_extent, temporal_extent):
     bands = ['B02', 'B12']
-    input_cube = input_datacube(connection, spatial_extent, temporal_extent, bands)
+    input_cube = s2_datacube(connection, spatial_extent, temporal_extent, bands)
     b02 = input_cube.band("B02")
     b12 = input_cube.band("B12")
     nddi = (b12 - b02) / (b12 + b02)
@@ -77,8 +75,13 @@ def generate(indices="bsi"):
     except KeyError:
         raise ValueError(f"Invalid indices specified: {indices}")
     
+    mask_cube = scl_cube(connection, spatial_extent, temporal_extent)
+    merged_cube = datacube.merge_cubes(mask_cube)
+    cube_dims = merged_cube.add_dimension(name="bands",label="bands", type="bands")
+    cube_renamed = cube_dims.rename_labels("bands",["BSI", "cloudy_pixels"])
+    
     return build_process_dict(
-        process_graph=datacube,
+        process_graph=cube_renamed,
         process_id=indices.upper(),
         description=about[indices]["description"],
         summary=about[indices]["summary"],
@@ -98,3 +101,4 @@ if __name__ == "__main__":
     indices = args.indices
     with open(f"{indices}.json", "w") as f:
         json.dump(generate(indices=indices), f, indent=2)
+        print(f"Generated UDP for indices: {indices}")

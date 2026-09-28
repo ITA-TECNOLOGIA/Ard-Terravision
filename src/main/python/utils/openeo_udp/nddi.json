@@ -16,45 +16,11 @@
                 }
             }
         },
-        "loadcollection2": {
-            "process_id": "load_collection",
-            "arguments": {
-                "bands": [
-                    "SCL"
-                ],
-                "id": "SENTINEL2_L2A",
-                "spatial_extent": {
-                    "from_parameter": "spatial_extent"
-                },
-                "temporal_extent": {
-                    "from_parameter": "temporal_extent"
-                }
-            }
-        },
-        "toscldilationmask1": {
-            "process_id": "to_scl_dilation_mask",
-            "arguments": {
-                "data": {
-                    "from_node": "loadcollection2"
-                }
-            }
-        },
-        "mask1": {
-            "process_id": "mask",
-            "arguments": {
-                "data": {
-                    "from_node": "loadcollection1"
-                },
-                "mask": {
-                    "from_node": "toscldilationmask1"
-                }
-            }
-        },
         "reducedimension1": {
             "process_id": "reduce_dimension",
             "arguments": {
                 "data": {
-                    "from_node": "mask1"
+                    "from_node": "loadcollection1"
                 },
                 "dimension": "bands",
                 "reducer": {
@@ -113,6 +79,146 @@
                         }
                     }
                 }
+            }
+        },
+        "loadcollection2": {
+            "process_id": "load_collection",
+            "arguments": {
+                "bands": [
+                    "SCL"
+                ],
+                "id": "SENTINEL2_L2A",
+                "spatial_extent": {
+                    "from_parameter": "spatial_extent"
+                },
+                "temporal_extent": {
+                    "from_parameter": "temporal_extent"
+                }
+            }
+        },
+        "reducedimension2": {
+            "process_id": "reduce_dimension",
+            "arguments": {
+                "data": {
+                    "from_node": "loadcollection2"
+                },
+                "dimension": "bands",
+                "reducer": {
+                    "process_graph": {
+                        "arrayelement3": {
+                            "process_id": "array_element",
+                            "arguments": {
+                                "data": {
+                                    "from_parameter": "data"
+                                },
+                                "index": 0
+                            }
+                        },
+                        "eq1": {
+                            "process_id": "eq",
+                            "arguments": {
+                                "x": {
+                                    "from_node": "arrayelement3"
+                                },
+                                "y": 8
+                            }
+                        },
+                        "arrayelement4": {
+                            "process_id": "array_element",
+                            "arguments": {
+                                "data": {
+                                    "from_parameter": "data"
+                                },
+                                "index": 0
+                            }
+                        },
+                        "eq2": {
+                            "process_id": "eq",
+                            "arguments": {
+                                "x": {
+                                    "from_node": "arrayelement4"
+                                },
+                                "y": 9
+                            }
+                        },
+                        "or1": {
+                            "process_id": "or",
+                            "arguments": {
+                                "x": {
+                                    "from_node": "eq1"
+                                },
+                                "y": {
+                                    "from_node": "eq2"
+                                }
+                            }
+                        },
+                        "arrayelement5": {
+                            "process_id": "array_element",
+                            "arguments": {
+                                "data": {
+                                    "from_parameter": "data"
+                                },
+                                "index": 0
+                            }
+                        },
+                        "eq3": {
+                            "process_id": "eq",
+                            "arguments": {
+                                "x": {
+                                    "from_node": "arrayelement5"
+                                },
+                                "y": 10
+                            }
+                        },
+                        "or2": {
+                            "process_id": "or",
+                            "arguments": {
+                                "x": {
+                                    "from_node": "or1"
+                                },
+                                "y": {
+                                    "from_node": "eq3"
+                                }
+                            },
+                            "result": true
+                        }
+                    }
+                }
+            }
+        },
+        "mergecubes1": {
+            "process_id": "merge_cubes",
+            "arguments": {
+                "cube1": {
+                    "from_node": "reducedimension1"
+                },
+                "cube2": {
+                    "from_node": "reducedimension2"
+                }
+            }
+        },
+        "adddimension1": {
+            "process_id": "add_dimension",
+            "arguments": {
+                "data": {
+                    "from_node": "mergecubes1"
+                },
+                "label": "bands",
+                "name": "bands",
+                "type": "bands"
+            }
+        },
+        "renamelabels1": {
+            "process_id": "rename_labels",
+            "arguments": {
+                "data": {
+                    "from_node": "adddimension1"
+                },
+                "dimension": "bands",
+                "target": [
+                    "NDDI",
+                    "cloudy_pixels"
+                ]
             },
             "result": true
         }
