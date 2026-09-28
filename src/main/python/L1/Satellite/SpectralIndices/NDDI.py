@@ -30,12 +30,18 @@ class NDDI(L1_Input):
                  shapefile: Optional[str] = None,
                  datacube_path: Optional[str] = None,
                  time_indices: Optional[List[int]] = None,
+                 cloud_mask_name: str = "cloudy_pixels",
+                 cloud_threshold: int = 90,
+                 mask_by_cloud_cover: bool = True,  
                  debug_time_index: int = 7
                  ):
 
         self.spectral_index = self.__class__.__name__
         self.start_date = start_date
         self.end_date = end_date
+        self.cloud_mask_band = cloud_mask_name
+        self.cloud_threshold = cloud_threshold
+        self.mask_by_cloud_cover = mask_by_cloud_cover
 
         super().__init__()
 
@@ -127,6 +133,18 @@ class NDDI(L1_Input):
         ds = xr.open_dataset(filename)
         if "var" in ds.data_vars:
             ds = ds.rename_vars({"var": self.spectral_index})
+            
+        if self.mask_by_cloud_cover:
+            cloud_mask = ds[self.cloud_mask_band]
+            spatial_dims = [dim for dim in ("x", "y") if dim in cloud_mask.dims]
+            cloud_percentage = ( cloud_mask.mean(dim=spatial_dims, skipna=True) * 100.0)
+            # Keep timestamps, but set all their values to NaN when too cloudy.
+            valid_timestep = cloud_percentage <= self.cloud_threshold
+            ds = ds.sel(t=valid_timestep)
+            ds = ds.sel(vars=[self.spectral_index])
+        else:
+            ds = ds.sel(vars=[self.spectral_index])
+            
         ds = ds.where(np.abs(ds[self.spectral_index]) <= 1)
         ds = ds.where(np.isfinite(ds[self.spectral_index]))
         return ds
