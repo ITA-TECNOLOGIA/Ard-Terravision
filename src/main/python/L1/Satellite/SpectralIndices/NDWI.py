@@ -13,6 +13,7 @@ import matplotlib.cm as cm
 import matplotlib.colors as colors
 import numpy as np
 import openeo
+from openeo.extra.spectral_indices import compute_indices
 from PIL import Image
 from shapely.geometry import mapping
 import xarray as xr
@@ -30,12 +31,19 @@ class NDWI(L1_Input):
                  shapefile: Optional[str] = None,
                  datacube_path: Optional[str] = None,
                  time_indices: Optional[List[int]] = None,
+                 cloud_mask_name: str = "cloudy_pixels",
+                 cloud_threshold: int = 90,
+                 mask_by_cloud_cover: bool = True,
                  debug_time_index: int = 7
                  ):
 
         self.spectral_index = self.__class__.__name__
         self.start_date = start_date
         self.end_date = end_date
+        self.cloud_mask_band = cloud_mask_name
+        self.cloud_threshold = cloud_threshold
+        self.mask_by_cloud_cover = mask_by_cloud_cover
+
 
         super().__init__()
 
@@ -82,8 +90,24 @@ class NDWI(L1_Input):
         temporal_extent=[start_date, end_date],
         bands=bands
         )
+        
+        # load the SCL band for cloud masking
+        scl = connection.load_collection(
+                "SENTINEL2_L2A",
+                spatial_extent=shape,
+                temporal_extent=[start_date, end_date],
+                bands=["SCL"]
+                )
+        cloud_mask =  ((scl.band("SCL") == 8) | (scl.band("SCL") == 9) | (scl.band("SCL") == 10))
+
         # Compute NDWI
-        ndwi = (datacube.band("B03") - datacube.band("B08")) / (datacube.band("B03") + datacube.band("B08"))
+        ndwi = compute_indices(
+            datacube=datacube,
+            indices=["NDWI"]
+        )
+        #add cloud mask band information into NDWI datacube
+        ndwi = ndwi.merge_cubes(cloud_mask)
+        ndwi = ndwi.rename_labels("bands",[self.spectral_index, self.cloud_mask_band])
 
         job = ndwi.execute_batch(
             filename,
@@ -128,7 +152,20 @@ class NDWI(L1_Input):
 
         # Read the datacube
         ds = xr.open_dataset(filename)
-        ds = ds.rename_vars({"var": self.spectral_index})
+        if "var" in ds.data_vars:
+            ds = ds.rename_vars({"var": self.spectral_index})
+
+        if self.mask_by_cloud_cover:
+            cloud_mask = ds[self.cloud_mask_band]
+            spatial_dims = [dim for dim in ("x", "y") if dim in cloud_mask.dims]
+            cloud_percentage = ( cloud_mask.mean(dim=spatial_dims, skipna=True) * 100.0)
+            # Keep timestamps, but set all their values to NaN when too cloudy.
+            valid_timestep = cloud_percentage <= self.cloud_threshold
+            ds = ds.sel(t=valid_timestep)
+            ds = ds.sel(vars=[self.spectral_index])
+        else:
+            ds = ds.sel(vars=[self.spectral_index])
+            
         ds = ds.where(np.abs(ds[self.spectral_index]) <= 1)
         ds = ds.where(np.isfinite(ds[self.spectral_index]))
         return ds
