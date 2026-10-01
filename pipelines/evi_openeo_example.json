@@ -6,6 +6,8 @@
             "start_date": "2025-01-01",
             "end_date": "2025-03-14",
             "shapefile": "canteras.shp",
+            "mask_by_cloud_cover": true,
+            "cloud_threshold": 20,
             "debug_time_index": 0
         }
     },

@@ -30,18 +30,17 @@ class BSI(L1_Input):
                  shapefile: Optional[str] = None,
                  datacube_path: Optional[str] = None,
                  time_indices: Optional[List[int]] = None,
-                 cloud_mask_name: str = "cloudy_pixels",
-                 cloud_threshold: int = 90,
-                 mask_by_cloud_cover: bool = True,  
+                 mask_by_cloud_cover: bool = True,
+                 cloud_threshold: int = None,
                  debug_time_index: int = 7
                  ):
 
         self.spectral_index = self.__class__.__name__
         self.start_date = start_date
         self.end_date = end_date
-        self.cloud_mask_band = cloud_mask_name
-        self.cloud_threshold = cloud_threshold
         self.mask_by_cloud_cover = mask_by_cloud_cover
+        self.cloud_threshold = cloud_threshold
+        self.cloud_mask_band = "cloudy_pixels"
 
         super().__init__()
 
@@ -55,6 +54,12 @@ class BSI(L1_Input):
             if shapefile is None:
                 raise ValueError("shapefile is required when using openEO")
 
+            if mask_by_cloud_cover:
+                # Check that cloud_threshold has been defined in the pipeline
+                if self.cloud_threshold is None:
+                    raise ValueError("Variable `cloud_threshold` must be defined when `mask_by_cloud_cover=True`")
+            logger.info(f"Downloading {self.spectral_index} using openEO for {shapefile} between {start_date} and {end_date}")
+            
             self.datacube = self._download_datacube(shapefile, start_date, end_date)
             self.datacube_path = None
         else:
@@ -80,13 +85,13 @@ class BSI(L1_Input):
             "max-executors": "50"
         }
 
-        public_url = "https://raw.githubusercontent.com/ITA-TECNOLOGIA/Ard-Terravision/b848749026d3397cd89969e549712e21e992d4a7/src/main/python/utils/openeo_udp/bsi.json"
+        public_url = "https://raw.githubusercontent.com/ITA-TECNOLOGIA/Ard-Terravision/4aa2d3045933a1e5a3a3b5c0686eb36746d4c2e1/src/main/python/utils/openeo_udp/bsi.json"
         # Define datacube
         bsi = connection.datacube_from_process(
                 "BSI", 
                 namespace=public_url,
                 temporal_extent=[start_date, end_date],
-                spatial_extent=shape,
+                spatial_extent=mapping(shape),
             )
 
         job = bsi.execute_batch(
@@ -142,9 +147,9 @@ class BSI(L1_Input):
             # Keep timestamps, but set all their values to NaN when too cloudy.
             valid_timestep = cloud_percentage <= self.cloud_threshold
             ds = ds.sel(t=valid_timestep)
-            ds = ds.sel(vars=[self.spectral_index])
+            ds = ds[[self.spectral_index]]
         else:
-            ds = ds.sel(vars=[self.spectral_index])
+            ds = ds[[self.spectral_index]]
             
         ds = ds.where(np.abs(ds[self.spectral_index]) <= 1)
         ds = ds.where(np.isfinite(ds[self.spectral_index]))
